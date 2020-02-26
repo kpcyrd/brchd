@@ -398,16 +398,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
 
 [[package]]
-name = "brch"
+name = "brchd"
 version = "0.1.0"
 dependencies = [
  "actix-multipart",
  "actix-rt",
  "actix-web",
+ "chrono",
  "env_logger",
  "failure",
  "futures",
  "log",
+ "rand",
  "reqwest",
  "serde",
  "sodiumoxide",
