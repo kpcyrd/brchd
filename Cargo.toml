@@ -21,3 +21,7 @@ reqwest = "0.10.2"
 sodiumoxide = { version="0.2.5", features=["use-pkg-config"] }
 chrono = "0.4.10"
 rand = "0.7.3"
+html5ever = "0.25"
+markup5ever_rcdom = "0.1.0"
+url = "2.1.1"
+walkdir = "2"

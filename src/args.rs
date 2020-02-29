@@ -1,11 +1,10 @@
-use std::path::PathBuf;
 use structopt::StructOpt;
 use structopt::clap::{AppSettings, Shell};
 
 #[derive(Debug, StructOpt)]
 #[structopt(global_settings = &[AppSettings::ColoredHelp])]
 pub struct Args {
-    pub paths: Vec<PathBuf>,
+    pub paths: Vec<String>,
     #[structopt(short, long, group="action")]
     pub daemon: bool,
     #[structopt(short="H", long, group="action")]

@@ -1,8 +1,12 @@
 use brchd::args::Args;
 use brchd::errors::*;
 use brchd::http;
+use brchd::spider;
+use brchd::walkdir;
 use env_logger::Env;
+use reqwest::Client;
 use std::io::stdout;
+use std::time::Duration;
 use structopt::StructOpt;
 
 async fn run() -> Result<()> {
@@ -16,7 +20,17 @@ async fn run() -> Result<()> {
     } else if let Some(shell) = args.gen_completions {
         Args::clap().gen_completions_to("brchd", shell, &mut stdout());
     } else if !args.paths.is_empty() {
-        println!("upload: {:?}", args.paths);
+        let client = Client::builder()
+            .timeout(Duration::from_secs(60))
+            .build()?;
+
+        for path in &args.paths {
+            if path.starts_with("https://") || path.starts_with("https://") {
+                spider::queue(&client, path).await?;
+            } else {
+                walkdir::queue(&client, path)?;
+            }
+        }
     } else {
         println!("empty args");
     }
