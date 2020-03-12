@@ -2,7 +2,7 @@ use actix_multipart::Multipart;
 use actix_multipart::Field;
 use actix_web::{middleware, web, App, Error, HttpResponse, HttpServer};
 use crate::args::Args;
-use crate::config::Config;
+use crate::config::UploadConfig;
 use crate::errors::*;
 use chrono::Utc;
 use futures::StreamExt;
@@ -66,7 +66,7 @@ fn open_upload_dest(dest: String, filename: String) -> std::io::Result<File> {
     }
 }
 
-async fn save_file(config: web::Data<Arc<Config>>, mut payload: Multipart) -> std::result::Result<HttpResponse, Error> {
+async fn save_file(config: web::Data<Arc<UploadConfig>>, mut payload: Multipart) -> std::result::Result<HttpResponse, Error> {
     // iterate over multipart stream
     while let Some(item) = payload.next().await {
         let mut field = item?;
@@ -103,7 +103,7 @@ fn index() -> HttpResponse {
 }
 
 pub async fn run(args: &Args) -> Result<()> {
-    let config = Arc::new(Config::load(&args)?);
+    let config = Arc::new(UploadConfig::load(&args)?);
 
     std::fs::create_dir_all(&config.upload_dest)?;
 

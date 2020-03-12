@@ -24,16 +24,20 @@ impl ConfigFile {
         if let Some(v) = &args.upload_dest {
             self.upload_dest = Some(v.clone());
         }
+
+        if let Some(v) = &args.bind_addr {
+            self.bind_addr = Some(v.clone());
+        }
     }
 
-    pub fn build(self) -> Result<Config> {
+    pub fn build_upload_config(self) -> Result<UploadConfig> {
         let upload_dest = self.upload_dest
             .ok_or_else(|| format_err!("upload_dest is required"))?;
 
         let bind_addr = self.bind_addr
             .unwrap_or_else(default_port);
 
-        Ok(Config {
+        Ok(UploadConfig {
             upload_dest,
             bind_addr,
         })
@@ -49,13 +53,13 @@ fn default_port() -> SocketAddr {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Config {
+pub struct UploadConfig {
     pub upload_dest: String,
     pub bind_addr: SocketAddr,
 }
 
-impl Config {
-    pub fn load(args: &Args) -> Result<Config> {
+impl UploadConfig {
+    pub fn load(args: &Args) -> Result<UploadConfig> {
         // TODO: take path from args, else use common paths
         let path = Path::new("config.toml");
 
@@ -66,6 +70,6 @@ impl Config {
         };
 
         config.update(args);
-        config.build()
+        config.build_upload_config()
     }
 }
