@@ -1,0 +1,53 @@
+use bufstream::BufStream;
+use crate::errors::*;
+use crate::queue::Item;
+use serde::{Serialize, Deserialize};
+use std::io::prelude::*;
+use std::os::unix::net::UnixStream;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum IpcMessage {
+    Subscribe,
+    StatusReq,
+    StatusResp(String), // TODO
+    Queue(Item),
+}
+
+pub fn read(stream: &mut BufStream<UnixStream>) -> Result<Option<IpcMessage>> {
+    let mut buf = String::new();
+    let n = stream.read_line(&mut buf)?;
+    if n > 0 {
+        let msg = serde_json::from_str(&buf[..n])?;
+        Ok(Some(msg))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn write(stream: &mut BufStream<UnixStream>, msg: &IpcMessage) -> Result<()> {
+    let mut buf = serde_json::to_string(msg)?;
+    buf.push('\n');
+    stream.write(buf.as_bytes())?;
+    stream.flush()?;
+    Ok(())
+}
+
+pub struct IpcClient {
+    stream: BufStream<UnixStream>,
+}
+
+impl IpcClient {
+    pub fn connect(path: &str) -> Result<IpcClient> {
+        let stream = UnixStream::connect(path)
+            .context("Failed to connect to brchd socket")?;
+        let stream = BufStream::new(stream);
+        Ok(IpcClient {
+            stream,
+        })
+    }
+
+    pub fn push_work(&mut self, task: Item) -> Result<()> {
+        info!("pushing item: {:?}", task);
+        write(&mut self.stream, &IpcMessage::Queue(task))
+    }
+}

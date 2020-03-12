@@ -1,6 +1,8 @@
 use brchd::args::Args;
+use brchd::daemon;
 use brchd::errors::*;
 use brchd::http;
+use brchd::ipc::IpcClient;
 use brchd::spider;
 use brchd::walkdir;
 use env_logger::Env;
@@ -14,21 +16,23 @@ async fn run() -> Result<()> {
     debug!("{:#?}", args);
 
     if args.daemon {
-        todo!();
+        daemon::run(&args)?;
     } else if args.http_daemon {
         http::run(&args).await?;
     } else if let Some(shell) = args.gen_completions {
         Args::clap().gen_completions_to("brchd", shell, &mut stdout());
     } else if !args.paths.is_empty() {
-        let client = Client::builder()
+        let mut client = IpcClient::connect("brchd.sock")?; // TODO: do not hardcode address
+
+        let http = Client::builder()
             .timeout(Duration::from_secs(60))
             .build()?;
 
         for path in &args.paths {
             if path.starts_with("https://") || path.starts_with("https://") {
-                spider::queue(&client, path).await?;
+                spider::queue(&mut client, &http, path).await?;
             } else {
-                walkdir::queue(&client, path)?;
+                walkdir::queue(&mut client, path)?;
             }
         }
     } else {

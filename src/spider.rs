@@ -1,11 +1,12 @@
 use crate::errors::*;
 use crate::html;
+use crate::ipc::IpcClient;
 use crate::queue::Item;
 use reqwest::Client;
 use std::collections::VecDeque;
 use url::Url;
 
-pub async fn queue(client: &Client, target: &str) -> Result<()> {
+pub async fn queue(client: &mut IpcClient, http: &Client, target: &str) -> Result<()> {
     let mut queue = VecDeque::new();
 
     let target = target.parse::<Url>()
@@ -13,7 +14,7 @@ pub async fn queue(client: &Client, target: &str) -> Result<()> {
     queue.push_back(target);
 
     while let Some(target) = queue.pop_front() {
-        let resp = client.get(target.clone())
+        let resp = http.get(target.clone())
             .send()
             .await?
             .error_for_status()?;
@@ -36,7 +37,7 @@ pub async fn queue(client: &Client, target: &str) -> Result<()> {
                 queue.push_back(link);
             } else {
                 let item = Item::Url(link);
-                println!("queue item: {:?}", item);
+                client.push_work(item)?;
             }
         }
     }
