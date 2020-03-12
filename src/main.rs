@@ -36,7 +36,12 @@ async fn run() -> Result<()> {
             }
         }
     } else {
-        println!("empty args");
+        // TODO: add --once option
+        let mut client = IpcClient::connect("brchd.sock")?; // TODO: do not hardcode address
+        client.subscribe()?;
+        while let Some(status) = client.read_status()? {
+            println!("status: {:?}", status);
+        }
     }
 
     Ok(())

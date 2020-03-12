@@ -1,7 +1,7 @@
 use bufstream::BufStream;
 use crate::args::Args;
 use crate::errors::*;
-use crate::ipc::{self, IpcMessage};
+use crate::ipc::{self, IpcMessage, Status};
 use crate::queue::Item;
 use std::collections::VecDeque;
 use std::fs;
@@ -12,7 +12,7 @@ use std::sync::mpsc;
 
 #[derive(Debug)]
 enum Command {
-    Subscribe(mpsc::Sender<IpcMessage>),
+    Subscribe(mpsc::Sender<Status>),
     PopQueue(mpsc::Sender<Item>),
     PushQueue(Item),
 }
@@ -21,6 +21,8 @@ struct Server {
     rx: mpsc::Receiver<Command>,
     queue: VecDeque<Item>,
     idle_workers: VecDeque<mpsc::Sender<Item>>,
+    subscribers: Vec<mpsc::Sender<Status>>,
+    status: Status,
 }
 
 impl Server {
@@ -29,7 +31,24 @@ impl Server {
             rx,
             queue: VecDeque::new(),
             idle_workers: VecDeque::new(),
+            subscribers: Vec::new(),
+            status: Status::default(),
         }
+    }
+
+    fn add_subscriber(&mut self, tx: mpsc::Sender<Status>) {
+        info!("adding new subscriber");
+        tx.send(self.status.clone()).ok();
+        self.subscribers.push(tx);
+    }
+
+    fn update_status(&mut self) {
+        let status = Status {
+            idle_workers: self.idle_workers.len(),
+            queue: self.queue.len(),
+        };
+        self.subscribers.retain(|c| c.send(status.clone()).is_ok());
+        self.status = status;
     }
 
     fn pop_queue(&mut self, worker: mpsc::Sender<Item>) {
@@ -40,6 +59,7 @@ impl Server {
             debug!("parking worker thread as idle");
             self.idle_workers.push_back(worker);
         }
+        self.update_status();
     }
 
     fn push_work(&mut self, task: Item) {
@@ -50,6 +70,7 @@ impl Server {
             debug!("adding task to queue");
             self.queue.push_back(task);
         }
+        self.update_status();
     }
 
     fn run(&mut self) {
@@ -57,9 +78,7 @@ impl Server {
             if let Ok(msg) = self.rx.recv() {
                 debug!("received from channel: {:?}", msg);
                 match msg {
-                    Command::Subscribe(tx) => {
-                        todo!()
-                    },
+                    Command::Subscribe(tx) => self.add_subscriber(tx),
                     Command::PopQueue(tx) => self.pop_queue(tx),
                     Command::PushQueue(item) => self.push_work(item),
                 }
@@ -111,10 +130,6 @@ impl Client {
         ipc::read(&mut self.stream)
     }
 
-    fn read_server(&self) -> String {
-        todo!()
-    }
-
     #[inline]
     fn write_line(&mut self, msg: &IpcMessage) -> Result<()> {
         ipc::write(&mut self.stream, msg)
@@ -124,15 +139,24 @@ impl Client {
         self.tx.send(cmd).unwrap();
     }
 
+    fn subscribe_loop(&mut self) -> Result<()> {
+        let (tx, rx) = mpsc::channel();
+        self.write_server(Command::Subscribe(tx));
+
+        for status in rx {
+            self.write_line(&IpcMessage::StatusResp(status))?;
+        }
+
+        Ok(())
+    }
+
     fn run(&mut self) -> Result<()> {
         while let Some(msg) = self.read_line()? {
             debug!("received from client: {:?}", msg);
             match msg {
-                IpcMessage::Subscribe => {
-                    todo!("enter subscribe loop");
-                },
-                IpcMessage::StatusReq => (),
-                IpcMessage::StatusResp(_) => (),
+                IpcMessage::Subscribe => self.subscribe_loop()?,
+                IpcMessage::StatusReq => todo!("status request"),
+                IpcMessage::StatusResp(_) => bail!("Unexpected ipc message"),
                 IpcMessage::Queue(item) => {
                     self.write_server(Command::PushQueue(item));
                 },

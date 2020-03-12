@@ -9,7 +9,7 @@ use std::os::unix::net::UnixStream;
 pub enum IpcMessage {
     Subscribe,
     StatusReq,
-    StatusResp(String), // TODO
+    StatusResp(Status),
     Queue(Item),
 }
 
@@ -50,4 +50,22 @@ impl IpcClient {
         info!("pushing item: {:?}", task);
         write(&mut self.stream, &IpcMessage::Queue(task))
     }
+
+    pub fn subscribe(&mut self) -> Result<()> {
+        write(&mut self.stream, &IpcMessage::Subscribe)
+    }
+
+    pub fn read_status(&mut self) -> Result<Option<Status>> {
+        match read(&mut self.stream)? {
+            Some(IpcMessage::StatusResp(status)) => Ok(Some(status)),
+            Some(_) => bail!("Unexpected ipc message"),
+            None => Ok(None),
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct Status {
+    pub idle_workers: usize,
+    pub queue: usize,
 }
