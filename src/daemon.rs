@@ -20,16 +20,18 @@ enum Command {
 struct Server {
     rx: mpsc::Receiver<Command>,
     queue: VecDeque<Item>,
+    total_workers: usize,
     idle_workers: VecDeque<mpsc::Sender<Item>>,
     subscribers: Vec<mpsc::Sender<Status>>,
     status: Status,
 }
 
 impl Server {
-    fn new(rx: mpsc::Receiver<Command>) -> Server {
+    fn new(rx: mpsc::Receiver<Command>, total_workers: usize) -> Server {
         Server {
             rx,
             queue: VecDeque::new(),
+            total_workers,
             idle_workers: VecDeque::new(),
             subscribers: Vec::new(),
             status: Status::default(),
@@ -45,6 +47,7 @@ impl Server {
     fn update_status(&mut self) {
         let status = Status {
             idle_workers: self.idle_workers.len(),
+            total_workers: self.total_workers,
             queue: self.queue.len(),
         };
         self.subscribers.retain(|c| c.send(status.clone()).is_ok());
@@ -75,6 +78,7 @@ impl Server {
 
     fn run(&mut self) {
         loop {
+            // TODO: this should occasionally unblock and ping subscribers to reap dead connections
             if let Ok(msg) = self.rx.recv() {
                 debug!("received from channel: {:?}", msg);
                 match msg {
@@ -175,14 +179,18 @@ fn accept(tx: mpsc::Sender<Command>, stream: UnixStream) {
     }
 }
 
-pub fn run(_args: &Args) -> Result<()> {
-    let path = Path::new("brchd.sock");
+pub fn run(args: &Args) -> Result<()> {
+    let path = Path::new(&args.socket);
     if path.exists() {
         fs::remove_file(&path)?;
     }
 
+    // TODO: ensure parent folder exists
+
+    let total_workers = 2;
+
     let (tx, rx) = mpsc::channel();
-    for _ in 0..2 {
+    for _ in 0..total_workers {
         let tx = tx.clone();
         thread::spawn(|| {
             let mut worker = Worker::new(tx);
@@ -190,8 +198,8 @@ pub fn run(_args: &Args) -> Result<()> {
         });
     }
 
-    thread::spawn(|| {
-        let mut server = Server::new(rx);
+    thread::spawn(move || {
+        let mut server = Server::new(rx, total_workers);
         server.run();
     });
 

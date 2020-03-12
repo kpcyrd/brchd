@@ -38,6 +38,7 @@ pub struct IpcClient {
 
 impl IpcClient {
     pub fn connect(path: &str) -> Result<IpcClient> {
+        info!("connecting to {:?}", path);
         let stream = UnixStream::connect(path)
             .context("Failed to connect to brchd socket")?;
         let stream = BufStream::new(stream);
@@ -67,5 +68,6 @@ impl IpcClient {
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Status {
     pub idle_workers: usize,
+    pub total_workers: usize,
     pub queue: usize,
 }
