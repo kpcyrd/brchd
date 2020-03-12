@@ -5,8 +5,9 @@ use serde::{Serialize, Deserialize};
 use std::io::prelude::*;
 use std::os::unix::net::UnixStream;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum IpcMessage {
+    Ping,
     Subscribe,
     StatusReq,
     StatusResp(Status),
@@ -57,10 +58,13 @@ impl IpcClient {
     }
 
     pub fn read_status(&mut self) -> Result<Option<Status>> {
-        match read(&mut self.stream)? {
-            Some(IpcMessage::StatusResp(status)) => Ok(Some(status)),
-            Some(_) => bail!("Unexpected ipc message"),
-            None => Ok(None),
+        loop {
+            return match read(&mut self.stream)? {
+                Some(IpcMessage::Ping) => continue,
+                Some(IpcMessage::StatusResp(status)) => Ok(Some(status)),
+                Some(_) => bail!("Unexpected ipc message"),
+                None => Ok(None),
+            };
         }
     }
 }

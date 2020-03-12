@@ -27,3 +27,4 @@ markup5ever_rcdom = "0.1.0"
 url = { version="2.1.1", features=["serde"] }
 walkdir = "2"
 bufstream = "0.1.4"
+crossbeam-channel = "0.4.2"
