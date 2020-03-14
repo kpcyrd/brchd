@@ -24,6 +24,7 @@ pub enum Command {
 struct Server {
     rx: channel::Receiver<Command>,
     queue: VecDeque<Item>,
+    queue_size: u64,
     total_workers: usize,
     idle_workers: VecDeque<channel::Sender<Item>>,
     subscribers: Vec<channel::Sender<IpcMessage>>,
@@ -35,6 +36,7 @@ impl Server {
         Server {
             rx,
             queue: VecDeque::new(),
+            queue_size: 0,
             total_workers,
             idle_workers: VecDeque::new(),
             subscribers: Vec::new(),
@@ -62,6 +64,7 @@ impl Server {
         self.status.idle_workers = self.idle_workers.len();
         self.status.total_workers = self.total_workers;
         self.status.queue = self.queue.len();
+        self.status.queue_size = self.queue_size;
         self.broadcast_subscribers(&IpcMessage::StatusResp(self.status.clone()));
     }
 
@@ -77,6 +80,7 @@ impl Server {
 
     fn pop_queue(&mut self, worker: channel::Sender<Item>) {
         if let Some(task) = self.queue.pop_front() {
+            self.queue_size -= task.size;
             debug!("assigning task to worker: {:?}", task);
             worker.send(task).expect("worker thread died");
         } else {
@@ -92,6 +96,7 @@ impl Server {
             worker.send(task).expect("worker thread died");
         } else {
             debug!("adding task to queue");
+            self.queue_size += task.size;
             self.queue.push_back(task);
         }
         self.update_stats();

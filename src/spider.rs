@@ -36,7 +36,7 @@ pub async fn queue(client: &mut IpcClient, http: &Client, target: &str) -> Resul
                 info!("traversing into directory: {:?}", link_str);
                 queue.push_back(link);
             } else {
-                let item = Item::Url(link);
+                let item = Item::url(link);
                 client.push_work(item)?;
             }
         }

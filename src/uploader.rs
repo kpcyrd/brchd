@@ -1,6 +1,6 @@
 use crate::daemon::Command;
 use crate::errors::*;
-use crate::queue::Item;
+use crate::queue::Target;
 use crate::status::{ProgressUpdate, UploadStart, UploadProgress, UploadEnd};
 use crossbeam_channel::{self as channel};
 use rand::{thread_rng, Rng};
@@ -10,7 +10,9 @@ use std::fs::{self, File};
 use std::io;
 use std::io::prelude::*;
 use std::path::Path;
-use std::time::Duration;
+use std::time::{Instant, Duration};
+
+const UPDATE_NOTIFY_RATELIMIT: Duration = Duration::from_millis(250);
 
 pub struct Worker {
     tx: channel::Sender<Command>,
@@ -31,17 +33,17 @@ impl Worker {
             let task = rx.recv().unwrap();
 
             info!("starting task: {:?}", task);
-            let result = match task {
-                Item::Path(path) => {
-                    self.start_upload(&path)
+            let (path, result) = match task.target {
+                Target::Path(path) => {
+                    (format!("{:?}", path), self.start_upload(&path))
                 },
-                Item::Url(_url) => todo!("url item"),
+                Target::Url(_url) => todo!("url item"),
             };
 
             if let Err(err) = result {
                 // TODO: consider retry
                 // TODO: notify the monitor somehow(?)
-                error!("upload failed: {}", err);
+                error!("upload failed ({}): {}", path, err);
             }
         }
     }
@@ -53,9 +55,15 @@ impl Worker {
 
         let (upload, key) = Upload::new(self.tx.clone(), file);
 
-        notify_start(&self.tx, key.clone(), total);
+        notify(&self.tx, ProgressUpdate::UploadStart(UploadStart {
+            key: key.clone(),
+            label: path.to_string_lossy().into_owned(),
+            total,
+        }));
         let result = self.upload_file(upload, path, total);
-        notify_end(&self.tx, key.clone());
+        notify(&self.tx, ProgressUpdate::UploadEnd(UploadEnd {
+            key: key,
+        }));
 
         result
     }
@@ -102,17 +110,41 @@ struct Upload<R> {
     tx: channel::Sender<Command>,
     inner: R,
     bytes_read: u64,
+    started: Instant, // TODO: sample recent upload speed instead of total
+    last_update: Instant,
 }
 
 impl<R> Upload<R> {
     fn new(tx: channel::Sender<Command>, inner: R) -> (Upload<R>, String) {
         let key = random_id();
+        let now = Instant::now();
         (Upload {
             key: key.clone(),
             tx,
             inner,
             bytes_read: 0,
+            started: now.clone(),
+            last_update: now.clone(),
         }, key)
+    }
+
+    fn notify(&mut self) {
+        let now = Instant::now();
+        if now.duration_since(self.last_update) >= UPDATE_NOTIFY_RATELIMIT {
+            let secs_elapsed = self.started.elapsed().as_secs();
+            let speed = if secs_elapsed > 0 {
+                self.bytes_read / secs_elapsed
+            } else {
+                self.bytes_read
+            };
+            notify(&self.tx, ProgressUpdate::UploadProgress(UploadProgress {
+                key: self.key.clone(),
+                bytes_read: self.bytes_read,
+                speed,
+            }));
+
+            self.last_update = now;
+        }
     }
 }
 
@@ -120,33 +152,12 @@ fn notify(tx: &channel::Sender<Command>, update: ProgressUpdate) {
     tx.send(Command::ProgressUpdate(update)).unwrap();
 }
 
-fn notify_start(tx: &channel::Sender<Command>, key: String, total: u64) {
-    notify(tx, ProgressUpdate::UploadStart(UploadStart {
-        key,
-        total,
-    }));
-}
-
-fn notify_progress(tx: &channel::Sender<Command>, key: String, bytes_read: u64) {
-    notify(tx, ProgressUpdate::UploadProgress(UploadProgress {
-        key,
-        bytes_read,
-    }));
-}
-
-fn notify_end(tx: &channel::Sender<Command>, key: String) {
-    notify(tx, ProgressUpdate::UploadEnd(UploadEnd {
-        key,
-    }));
-}
-
-// TODO: add a ratelimit for progress notifications
 impl<R: Read> Read for Upload<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner.read(buf)
             .map(|n| {
                 self.bytes_read += n as u64;
-                notify_progress(&self.tx, self.key.clone(), self.bytes_read);
+                self.notify();
                 n
             })
     }
