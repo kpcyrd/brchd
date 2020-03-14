@@ -18,7 +18,7 @@ actix-rt = "1.0.0"
 actix-web = "2.0.0"
 actix-multipart = "0.2.0"
 futures = "0.3.4"
-reqwest = "0.10.2"
+reqwest = { version="0.10.2", features=["blocking"] }
 sodiumoxide = { version="0.2.5", features=["use-pkg-config"] }
 chrono = "0.4.10"
 rand = "0.7.3"
@@ -28,3 +28,4 @@ url = { version="2.1.1", features=["serde"] }
 walkdir = "2"
 bufstream = "0.1.4"
 crossbeam-channel = "0.4.2"
+console = "0.10.0"

@@ -1,8 +1,10 @@
 use bufstream::BufStream;
 use crate::args::Args;
 use crate::errors::*;
-use crate::ipc::{self, IpcMessage, Status};
+use crate::ipc::{self, IpcMessage};
+use crate::uploader::Worker;
 use crate::queue::Item;
+use crate::status::{Status, ProgressUpdate};
 use crossbeam_channel::{self as channel, select};
 use std::collections::VecDeque;
 use std::fs;
@@ -12,10 +14,11 @@ use std::thread;
 use std::time::Duration;
 
 #[derive(Debug)]
-enum Command {
+pub enum Command {
     Subscribe(channel::Sender<IpcMessage>),
     PopQueue(channel::Sender<Item>),
     PushQueue(Item),
+    ProgressUpdate(ProgressUpdate),
 }
 
 struct Server {
@@ -50,14 +53,16 @@ impl Server {
         self.broadcast_subscribers(&IpcMessage::Ping);
     }
 
-    fn update_status(&mut self) {
-        let status = Status {
-            idle_workers: self.idle_workers.len(),
-            total_workers: self.total_workers,
-            queue: self.queue.len(),
-        };
-        self.broadcast_subscribers(&IpcMessage::StatusResp(status.clone()));
-        self.status = status;
+    fn update_progress(&mut self, update: ProgressUpdate) {
+        self.status.update(update);
+        self.broadcast_subscribers(&IpcMessage::StatusResp(self.status.clone()));
+    }
+
+    fn update_stats(&mut self) {
+        self.status.idle_workers = self.idle_workers.len();
+        self.status.total_workers = self.total_workers;
+        self.status.queue = self.queue.len();
+        self.broadcast_subscribers(&IpcMessage::StatusResp(self.status.clone()));
     }
 
     fn broadcast_subscribers(&mut self, msg: &IpcMessage) {
@@ -78,7 +83,7 @@ impl Server {
             debug!("parking worker thread as idle");
             self.idle_workers.push_back(worker);
         }
-        self.update_status();
+        self.update_stats();
     }
 
     fn push_work(&mut self, task: Item) {
@@ -89,7 +94,7 @@ impl Server {
             debug!("adding task to queue");
             self.queue.push_back(task);
         }
-        self.update_status();
+        self.update_stats();
     }
 
     fn run(&mut self) {
@@ -101,33 +106,12 @@ impl Server {
                         Ok(Command::Subscribe(tx)) => self.add_subscriber(tx),
                         Ok(Command::PopQueue(tx)) => self.pop_queue(tx),
                         Ok(Command::PushQueue(item)) => self.push_work(item),
+                        Ok(Command::ProgressUpdate(update)) => self.update_progress(update),
                         Err(_) => break,
                     }
                 }
                 default(Duration::from_secs(60)) => self.ping_subscribers(),
             }
-        }
-    }
-}
-
-struct Worker {
-    tx: channel::Sender<Command>,
-}
-
-impl Worker {
-    fn new(tx: channel::Sender<Command>) -> Worker {
-        Worker {
-            tx,
-        }
-    }
-
-    fn run(&mut self) {
-        // TODO: lots of smart logic missing here
-        loop {
-            let (tx, rx) = channel::unbounded();
-            self.tx.send(Command::PopQueue(tx)).unwrap();
-            let task = rx.recv().unwrap();
-            println!("working hard on task: {:?}", task);
         }
     }
 }

@@ -1,6 +1,7 @@
 use bufstream::BufStream;
 use crate::errors::*;
 use crate::queue::Item;
+use crate::status::Status;
 use serde::{Serialize, Deserialize};
 use std::io::prelude::*;
 use std::os::unix::net::UnixStream;
@@ -67,11 +68,4 @@ impl IpcClient {
             };
         }
     }
-}
-
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct Status {
-    pub idle_workers: usize,
-    pub total_workers: usize,
-    pub queue: usize,
 }

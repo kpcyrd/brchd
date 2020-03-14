@@ -4,6 +4,7 @@ use brchd::errors::*;
 use brchd::http;
 use brchd::ipc::IpcClient;
 use brchd::spider;
+use brchd::status::StatusWriter;
 use brchd::walkdir;
 use env_logger::Env;
 use reqwest::Client;
@@ -33,6 +34,7 @@ async fn run() -> Result<()> {
         let mut client = IpcClient::connect(&args.socket)?;
 
         let http = Client::builder()
+            .connect_timeout(Duration::from_secs(5))
             .timeout(Duration::from_secs(60))
             .build()?;
 
@@ -47,8 +49,9 @@ async fn run() -> Result<()> {
         // TODO: add --once option
         let mut client = IpcClient::connect(&args.socket)?;
         client.subscribe()?;
+        let mut w = StatusWriter::new();
         while let Some(status) = client.read_status()? {
-            println!("status: {:?}", status);
+            w.write(status)?;
         }
     }
 
@@ -58,7 +61,7 @@ async fn run() -> Result<()> {
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(Env::default()
-        .default_filter_or("actix_server=info,actix_web=info"));
+        .default_filter_or("actix_server=info,actix_web=info,brchd=warn"));
 
     if let Err(err) = run().await {
         eprintln!("Error: {}", err);
