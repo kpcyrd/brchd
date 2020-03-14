@@ -5,6 +5,7 @@ use crate::status::Status;
 use serde::{Serialize, Deserialize};
 use std::io::prelude::*;
 use std::os::unix::net::UnixStream;
+use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum IpcMessage {
@@ -39,7 +40,7 @@ pub struct IpcClient {
 }
 
 impl IpcClient {
-    pub fn connect(path: &str) -> Result<IpcClient> {
+    pub fn connect(path: &Path) -> Result<IpcClient> {
         info!("connecting to {:?}", path);
         let stream = UnixStream::connect(path)
             .context("Failed to connect to brchd socket")?;

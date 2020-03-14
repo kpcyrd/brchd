@@ -9,7 +9,6 @@ use crossbeam_channel::{self as channel, select};
 use std::collections::VecDeque;
 use std::fs;
 use std::os::unix::net::{UnixStream, UnixListener};
-use std::path::Path;
 use std::thread;
 use std::time::Duration;
 
@@ -189,14 +188,14 @@ fn accept(tx: channel::Sender<Command>, stream: UnixStream) {
 }
 
 pub fn run(args: &Args) -> Result<()> {
-    let path = Path::new(&args.socket);
+    let path = args.socket()?;
     if path.exists() {
         fs::remove_file(&path)?;
     }
 
     // TODO: ensure parent folder exists
 
-    let total_workers = 2;
+    let total_workers = args.concurrency;
 
     let (tx, rx) = channel::unbounded();
     for _ in 0..total_workers {
