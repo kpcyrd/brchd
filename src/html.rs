@@ -4,21 +4,18 @@ use html5ever::tendril::TendrilSink;
 use rcdom::{Handle, NodeData, RcDom};
 
 fn walk(outlinks: &mut Vec<String>, node: &Handle) {
-    match node.data {
-        NodeData::Element {
-            ref name,
-            ref attrs,
-            ..
-        } => {
-            if local_name!("a") == name.local {
-                for attr in attrs.borrow().iter() {
-                    if attr.name.local.eq_str_ignore_ascii_case("href") {
-                        outlinks.push(attr.value.to_string());
-                    }
+    if let NodeData::Element {
+        ref name,
+        ref attrs,
+        ..
+    } = node.data {
+        if local_name!("a") == name.local {
+            for attr in attrs.borrow().iter() {
+                if attr.name.local.eq_str_ignore_ascii_case("href") {
+                    outlinks.push(attr.value.to_string());
                 }
             }
-        },
-        _ => (),
+        }
     }
 
     for child in node.children.borrow().iter() {

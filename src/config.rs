@@ -15,21 +15,31 @@ fn find_config_file() -> Option<PathBuf> {
         }
     }
 
-    let path = Path::new("/etc/brchd.toml");
+    let path = PathBuf::from("/etc/brchd.toml");
     if path.exists() {
-        return Some(path.to_path_buf());
+        return Some(path);
     }
 
     None
 }
 
-fn build_socket_path(socket: Option<PathBuf>) -> Result<PathBuf> {
+fn build_socket_path(socket: Option<PathBuf>, search: bool) -> Result<PathBuf> {
     if let Some(path) = socket {
         Ok(path)
     } else {
         let path = dirs::data_dir()
             .ok_or_else(|| format_err!("Failed to find data directory"))?;
-        Ok(path.join("brchd.sock"))
+        let path = path.join("brchd.sock");
+        if !search || path.exists() {
+            return Ok(path);
+        }
+
+        let path = PathBuf::from("/var/run/brchd/sock");
+        if path.exists() {
+            return Ok(path);
+        }
+
+        bail!("Socket path not found")
     }
 }
 
@@ -57,7 +67,7 @@ impl ConfigFile {
         }
 
         if let Some(v) = &args.bind_addr {
-            self.http.bind_addr = Some(v.clone());
+            self.http.bind_addr = Some(*v);
         }
 
         if let Some(v) = args.concurrency {
@@ -79,7 +89,7 @@ impl ConfigFile {
     }
 
     pub fn build_daemon_config(self) -> Result<DaemonConfig> {
-        let socket = build_socket_path(self.daemon.socket)?;
+        let socket = build_socket_path(self.daemon.socket, false)?;
 
         let destination = self.daemon.destination
             .ok_or_else(|| format_err!("destination is required"))?;
@@ -95,7 +105,7 @@ impl ConfigFile {
     }
 
     pub fn build_client_config(self) -> Result<ClientConfig> {
-        let socket = build_socket_path(self.daemon.socket)?;
+        let socket = build_socket_path(self.daemon.socket, true)?;
 
         Ok(ClientConfig {
             socket,

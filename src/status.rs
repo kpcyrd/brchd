@@ -34,7 +34,8 @@ impl Status {
                 });
             },
             ProgressUpdate::UploadProgress(progress) => {
-                let p = self.progress.get_mut(&progress.key).expect(&format!("progress bar not found: {:?}", progress.key));
+                let p = self.progress.get_mut(&progress.key)
+                    .unwrap_or_else(|| panic!("progress bar not found: {:?}", progress.key));
                 p.bytes_read = progress.bytes_read;
                 p.speed = progress.speed;
             },
@@ -88,6 +89,12 @@ pub struct StatusWriter {
     term: Term,
     height: usize,
     last_update: Instant,
+}
+
+impl Default for StatusWriter {
+    fn default() -> Self {
+            Self::new()
+    }
 }
 
 impl StatusWriter {

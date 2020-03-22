@@ -62,7 +62,7 @@ impl Worker {
         }));
         let result = self.upload_file(upload, path, total);
         notify(&self.tx, ProgressUpdate::UploadEnd(UploadEnd {
-            key: key,
+            key,
         }));
 
         result
@@ -123,8 +123,8 @@ impl<R> Upload<R> {
             tx,
             inner,
             bytes_read: 0,
-            started: now.clone(),
-            last_update: now.clone(),
+            started: now,
+            last_update: now,
         }, key)
     }
 

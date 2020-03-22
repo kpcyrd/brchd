@@ -32,7 +32,7 @@ pub async fn queue(client: &mut IpcClient, http: &Client, target: &str) -> Resul
                 continue;
             }
 
-            if link_str.ends_with("/") {
+            if link_str.ends_with('/') {
                 info!("traversing into directory: {:?}", link_str);
                 queue.push_back(link);
             } else {

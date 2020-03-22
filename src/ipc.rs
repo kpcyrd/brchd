@@ -30,7 +30,7 @@ pub fn read(stream: &mut BufStream<UnixStream>) -> Result<Option<IpcMessage>> {
 pub fn write(stream: &mut BufStream<UnixStream>, msg: &IpcMessage) -> Result<()> {
     let mut buf = serde_json::to_string(msg)?;
     buf.push('\n');
-    stream.write(buf.as_bytes())?;
+    stream.write_all(buf.as_bytes())?;
     stream.flush()?;
     Ok(())
 }
