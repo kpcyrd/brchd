@@ -1,0 +1,7 @@
+[daemon]
+socket = "brchd.sock"
+destination = "http://127.0.0.1:7070"
+
+[http]
+bind_addr = ":8080"
+destination = "tmp/"

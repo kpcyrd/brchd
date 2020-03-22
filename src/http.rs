@@ -73,7 +73,7 @@ async fn save_file(config: web::Data<Arc<UploadConfig>>, mut payload: Multipart)
 
         if let Some(filename) = filename(&field)? {
             // filesystem operations are blocking, we have to use threadpool
-            let upload_dest = config.upload_dest.clone();
+            let upload_dest = config.destination.clone();
             let mut f = web::block(|| open_upload_dest(upload_dest, filename))
                 .await?;
 
@@ -105,7 +105,7 @@ fn index() -> HttpResponse {
 pub async fn run(args: &Args) -> Result<()> {
     let config = Arc::new(UploadConfig::load(&args)?);
 
-    std::fs::create_dir_all(&config.upload_dest)?;
+    std::fs::create_dir_all(&config.destination)?;
 
     let app_data = config.clone();
     HttpServer::new(move || {

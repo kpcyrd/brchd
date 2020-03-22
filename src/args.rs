@@ -32,9 +32,12 @@ pub struct Args {
     pub wait: bool,
     #[structopt(short="S", long, env="BRCHD_SOCK")]
     pub socket: Option<PathBuf>,
+    #[structopt(short="c", long, env="BRCHD_CONFIG")]
+    pub config: Option<PathBuf>,
 }
 
 impl Args {
+    // TODO: this should come from an config object
     pub fn socket(&self) -> Result<PathBuf> {
         if let Some(path) = &self.socket {
             Ok(path.clone())

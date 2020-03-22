@@ -1,5 +1,6 @@
 use bufstream::BufStream;
 use crate::args::Args;
+use crate::config::DaemonConfig;
 use crate::errors::*;
 use crate::ipc::{self, IpcMessage};
 use crate::uploader::Worker;
@@ -188,7 +189,9 @@ fn accept(tx: channel::Sender<Command>, stream: UnixStream) {
 }
 
 pub fn run(args: &Args) -> Result<()> {
-    let path = args.socket()?;
+    let config = DaemonConfig::load(&args)?;
+
+    let path = config.socket;
     if path.exists() {
         fs::remove_file(&path)?;
     }
