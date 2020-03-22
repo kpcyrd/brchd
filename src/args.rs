@@ -1,6 +1,6 @@
 use crate::errors::*;
 use std::fs;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, IpAddr};
 use std::path::PathBuf;
 use structopt::StructOpt;
 use structopt::clap::{AppSettings, Shell};
@@ -10,7 +10,7 @@ use structopt::clap::{AppSettings, Shell};
 pub struct Args {
     pub paths: Vec<String>,
     /// Run the uploader daemon
-    #[structopt(short="d", long, group="action")]
+    #[structopt(short="D", long, group="action")]
     pub daemon: bool,
     /// Run the http uploads receiver
     #[structopt(short="H", long, group="action")]
@@ -18,9 +18,9 @@ pub struct Args {
     /// Generate shell completions
     #[structopt(long, possible_values=&Shell::variants(), group="action")]
     pub gen_completions: Option<Shell>,
-    /// Directory to store uploads in
-    #[structopt(short="p", long)]
-    pub upload_dest: Option<String>,
+    /// Storage destination
+    #[structopt(short="d", long)]
+    pub destination: Option<String>,
     /// Address to bind to
     #[structopt(short="B", long, parse(try_from_str = parse_addr))]
     pub bind_addr: Option<SocketAddr>,
@@ -56,10 +56,13 @@ fn parse_addr(s: &str) -> Result<SocketAddr> {
         .ok_or_else(|| format_err!("no `:` found in `{}`", s))?;
 
     let r = if idx == 0 {
-        let s = format!("[::]{}", s);
-        s.parse::<SocketAddr>()
+        let port = s[1..].parse()?;
+        SocketAddr::new(IpAddr::from([
+            0, 0, 0, 0,
+            0, 0, 0, 0,
+        ]), port)
     } else {
-        s.parse::<SocketAddr>()
-    }?;
+        s.parse::<SocketAddr>()?
+    };
     Ok(r)
 }

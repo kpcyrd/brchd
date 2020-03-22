@@ -21,7 +21,7 @@ impl ConfigFile {
     }
 
     pub fn update(&mut self, args: &Args) {
-        if let Some(v) = &args.upload_dest {
+        if let Some(v) = &args.destination {
             self.upload_dest = Some(v.clone());
         }
 

@@ -2,11 +2,11 @@
 
 ## Starting the receiver somewhere
 
-     brchd -Hp ./drop/ -B :1337
+     brchd -Hd ./drop/ -B :1337
 
 ## Run the background uploader
 
-    brchd -d
+    brchd -D
 
 ## Manage uploads
 
