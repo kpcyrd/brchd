@@ -190,16 +190,19 @@ fn accept(tx: channel::Sender<Command>, stream: UnixStream) {
 
 pub fn run(args: &Args) -> Result<()> {
     let config = DaemonConfig::load(&args)?;
-
     let path = config.socket;
-    if path.exists() {
-        fs::remove_file(&path)?;
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .context("Failed to create socket parent folder")?;
     }
 
-    // TODO: ensure parent folder exists
+    if path.exists() {
+        fs::remove_file(&path)
+            .context("Failed to remove old socket")?;
+    }
 
-    let total_workers = args.concurrency;
-
+    let total_workers = config.concurrency;
     let (tx, rx) = channel::unbounded();
     for _ in 0..total_workers {
         let tx = tx.clone();
@@ -214,7 +217,8 @@ pub fn run(args: &Args) -> Result<()> {
         server.run();
     });
 
-    let listener = UnixListener::bind(&path)?;
+    let listener = UnixListener::bind(&path)
+        .context("Failed to bind to socket path")?;
     info!("ready to accept connections");
     for stream in listener.incoming() {
         match stream {

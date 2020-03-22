@@ -1,5 +1,4 @@
 use crate::errors::*;
-use std::fs;
 use std::net::{SocketAddr, IpAddr};
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -25,8 +24,8 @@ pub struct Args {
     #[structopt(short="B", long, parse(try_from_str = parse_addr))]
     pub bind_addr: Option<SocketAddr>,
     /// Concurrent uploads
-    #[structopt(short="n", default_value="3")]
-    pub concurrency: usize,
+    #[structopt(short="n")]
+    pub concurrency: Option<usize>,
     /// Block until all pending uploads are done
     #[structopt(short="w", long, group="action")]
     pub wait: bool,
@@ -34,23 +33,6 @@ pub struct Args {
     pub socket: Option<PathBuf>,
     #[structopt(short="c", long, env="BRCHD_CONFIG")]
     pub config: Option<PathBuf>,
-}
-
-impl Args {
-    // TODO: this should come from an config object
-    pub fn socket(&self) -> Result<PathBuf> {
-        if let Some(path) = &self.socket {
-            Ok(path.clone())
-        } else {
-            let path = dirs::data_dir()
-                .ok_or_else(|| format_err!("Failed to find data directory"))?;
-
-            fs::create_dir_all(&path)
-                .context("Failed to create data directory")?;
-
-            Ok(path.join("brchd.sock"))
-        }
-    }
 }
 
 fn parse_addr(s: &str) -> Result<SocketAddr> {

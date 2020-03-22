@@ -1,4 +1,5 @@
 use brchd::args::Args;
+use brchd::config::ClientConfig;
 use brchd::daemon;
 use brchd::errors::*;
 use brchd::http;
@@ -21,7 +22,8 @@ async fn run() -> Result<()> {
     } else if args.http_daemon {
         http::run(&args).await?;
     } else if args.wait {
-        let mut client = IpcClient::connect(&args.socket()?)?;
+        let config = ClientConfig::load(&args)?;
+        let mut client = IpcClient::connect(&config.socket)?;
         client.subscribe()?;
         while let Some(status) = client.read_status()? {
             if status.queue == 0 && status.idle_workers == status.total_workers {
@@ -31,7 +33,8 @@ async fn run() -> Result<()> {
     } else if let Some(shell) = args.gen_completions {
         Args::clap().gen_completions_to("brchd", shell, &mut stdout());
     } else if !args.paths.is_empty() {
-        let mut client = IpcClient::connect(&args.socket()?)?;
+        let config = ClientConfig::load(&args)?;
+        let mut client = IpcClient::connect(&config.socket)?;
 
         let http = Client::builder()
             .connect_timeout(Duration::from_secs(5))
@@ -47,7 +50,8 @@ async fn run() -> Result<()> {
         }
     } else {
         // TODO: add --once option
-        let mut client = IpcClient::connect(&args.socket()?)?;
+        let config = ClientConfig::load(&args)?;
+        let mut client = IpcClient::connect(&config.socket)?;
         client.subscribe()?;
         let mut w = StatusWriter::new();
         while let Some(status) = client.read_status()? {

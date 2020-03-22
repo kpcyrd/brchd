@@ -1,7 +1,8 @@
 [daemon]
 socket = "brchd.sock"
-destination = "http://127.0.0.1:7070"
+destination = "http://127.0.0.1:8080"
+concurrency = 4
 
 [http]
-bind_addr = ":8080"
+bind_addr = "[::]:8080"
 destination = "tmp/"

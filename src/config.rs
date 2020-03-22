@@ -5,6 +5,8 @@ use std::fs;
 use std::net::{SocketAddr, IpAddr, Ipv6Addr};
 use std::path::{Path, PathBuf};
 
+const DEFAULT_CONCURRENCY: usize = 3;
+
 fn find_config_file() -> Option<PathBuf> {
     if let Some(path) = dirs::config_dir() {
         let path = path.join("brchd.toml");
@@ -19,6 +21,16 @@ fn find_config_file() -> Option<PathBuf> {
     }
 
     None
+}
+
+fn build_socket_path(socket: Option<PathBuf>) -> Result<PathBuf> {
+    if let Some(path) = socket {
+        Ok(path)
+    } else {
+        let path = dirs::data_dir()
+            .ok_or_else(|| format_err!("Failed to find data directory"))?;
+        Ok(path.join("brchd.sock"))
+    }
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -47,6 +59,10 @@ impl ConfigFile {
         if let Some(v) = &args.bind_addr {
             self.http.bind_addr = Some(v.clone());
         }
+
+        if let Some(v) = args.concurrency {
+            self.daemon.concurrency = Some(v);
+        }
     }
 
     pub fn load(args: &Args) -> Result<ConfigFile> {
@@ -62,29 +78,27 @@ impl ConfigFile {
         Ok(config)
     }
 
-    fn default_socket_path() -> Result<PathBuf> {
-        let path = dirs::data_dir()
-            .ok_or_else(|| format_err!("Failed to find data directory"))?;
-
-        fs::create_dir_all(&path)
-            .context("Failed to create data directory")?;
-
-        Ok(path.join("brchd.sock"))
-    }
-
     pub fn build_daemon_config(self) -> Result<DaemonConfig> {
-        let socket = if let Some(path) = self.daemon.socket {
-            path
-        } else {
-            Self::default_socket_path()?
-        };
+        let socket = build_socket_path(self.daemon.socket)?;
 
         let destination = self.daemon.destination
             .ok_or_else(|| format_err!("destination is required"))?;
 
+        let concurrency = self.daemon.concurrency
+            .unwrap_or(DEFAULT_CONCURRENCY);
+
         Ok(DaemonConfig {
             socket,
             destination,
+            concurrency,
+        })
+    }
+
+    pub fn build_client_config(self) -> Result<ClientConfig> {
+        let socket = build_socket_path(self.daemon.socket)?;
+
+        Ok(ClientConfig {
+            socket,
         })
     }
 
@@ -114,6 +128,7 @@ fn default_port() -> SocketAddr {
 pub struct Daemon {
     socket: Option<PathBuf>,
     destination: Option<String>,
+    concurrency: Option<usize>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -126,12 +141,25 @@ pub struct Http {
 pub struct DaemonConfig {
     pub socket: PathBuf,
     pub destination: String,
+    pub concurrency: usize,
 }
 
 impl DaemonConfig {
     pub fn load(args: &Args) -> Result<DaemonConfig> {
         ConfigFile::load(args)?
             .build_daemon_config()
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ClientConfig {
+    pub socket: PathBuf,
+}
+
+impl ClientConfig {
+    pub fn load(args: &Args) -> Result<ClientConfig> {
+        ConfigFile::load(args)?
+            .build_client_config()
     }
 }
 
