@@ -1,3 +1,4 @@
+use crate::errors::*;
 use serde::{Serialize, Deserialize};
 use std::path::PathBuf;
 use url::Url;
@@ -28,4 +29,8 @@ impl Item {
 pub enum Target {
     Path(PathBuf),
     Url(Url),
+}
+
+pub trait QueueClient {
+    fn push_work(&mut self, task: Item) -> Result<()>;
 }

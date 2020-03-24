@@ -4,8 +4,10 @@ use brchd::daemon;
 use brchd::errors::*;
 use brchd::http;
 use brchd::ipc::IpcClient;
+use brchd::queue::QueueClient;
 use brchd::spider;
 use brchd::status::StatusWriter;
+use brchd::standalone::Standalone;
 use brchd::walkdir;
 use env_logger::Env;
 use reqwest::Client;
@@ -34,7 +36,12 @@ async fn run() -> Result<()> {
         Args::clap().gen_completions_to("brchd", shell, &mut stdout());
     } else if !args.paths.is_empty() {
         let config = ClientConfig::load(&args)?;
-        let mut client = IpcClient::connect(&config.socket)?;
+
+        let mut client: Box<dyn QueueClient> = if let Some(dest) = args.destination {
+            Box::new(Standalone::new(dest))
+        } else {
+            Box::new(IpcClient::connect(&config.socket)?)
+        };
 
         let http = Client::builder()
             .connect_timeout(Duration::from_secs(5))

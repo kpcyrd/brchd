@@ -1,6 +1,6 @@
 use bufstream::BufStream;
 use crate::errors::*;
-use crate::queue::Item;
+use crate::queue::{Item, QueueClient};
 use crate::status::Status;
 use serde::{Serialize, Deserialize};
 use std::io::prelude::*;
@@ -39,6 +39,13 @@ pub struct IpcClient {
     stream: BufStream<UnixStream>,
 }
 
+impl QueueClient for IpcClient {
+    fn push_work(&mut self, task: Item) -> Result<()> {
+        info!("pushing item: {:?}", task);
+        write(&mut self.stream, &IpcMessage::Queue(task))
+    }
+}
+
 impl IpcClient {
     pub fn connect(path: &Path) -> Result<IpcClient> {
         info!("connecting to {:?}", path);
@@ -48,11 +55,6 @@ impl IpcClient {
         Ok(IpcClient {
             stream,
         })
-    }
-
-    pub fn push_work(&mut self, task: Item) -> Result<()> {
-        info!("pushing item: {:?}", task);
-        write(&mut self.stream, &IpcMessage::Queue(task))
     }
 
     pub fn subscribe(&mut self) -> Result<()> {

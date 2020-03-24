@@ -1,12 +1,11 @@
 use crate::errors::*;
 use crate::html;
-use crate::ipc::IpcClient;
-use crate::queue::Item;
+use crate::queue:: {Item, QueueClient};
 use reqwest::Client;
 use std::collections::VecDeque;
 use url::Url;
 
-pub async fn queue(client: &mut IpcClient, http: &Client, target: &str) -> Result<()> {
+pub async fn queue(client: &mut Box<dyn QueueClient>, http: &Client, target: &str) -> Result<()> {
     let mut queue = VecDeque::new();
 
     let target = target.parse::<Url>()

@@ -8,6 +8,7 @@ pub mod html;
 pub mod http;
 pub mod ipc;
 pub mod spider;
+pub mod standalone;
 pub mod status;
 pub mod uploader;
 pub mod queue;

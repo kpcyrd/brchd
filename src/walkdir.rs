@@ -1,10 +1,9 @@
 use crate::errors::*;
-use crate::ipc::IpcClient;
-use crate::queue::Item;
+use crate::queue::{Item, QueueClient};
 use std::fs;
 use walkdir::WalkDir;
 
-pub fn queue(client: &mut IpcClient, target: &str) -> Result<()> {
+pub fn queue(client: &mut Box<dyn QueueClient>, target: &str) -> Result<()> {
     for entry in WalkDir::new(target) {
         let entry = entry?;
         let md = entry.metadata()?;
