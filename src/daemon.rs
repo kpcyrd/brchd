@@ -206,8 +206,10 @@ pub fn run(args: &Args) -> Result<()> {
     let (tx, rx) = channel::unbounded();
     for _ in 0..total_workers {
         let tx = tx.clone();
-        thread::spawn(|| {
-            let mut worker = Worker::new(tx);
+        let destination = config.destination.clone();
+        let mut worker = Worker::new(destination, tx)
+            .context("Failed to create worker")?;
+        thread::spawn(move || {
             worker.run();
         });
     }

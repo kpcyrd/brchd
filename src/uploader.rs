@@ -15,14 +15,22 @@ use std::time::{Instant, Duration};
 const UPDATE_NOTIFY_RATELIMIT: Duration = Duration::from_millis(250);
 
 pub struct Worker {
+    client: Client,
+    destination: String,
     tx: channel::Sender<Command>,
 }
 
 impl Worker {
-    pub fn new(tx: channel::Sender<Command>) -> Worker {
-        Worker {
+    pub fn new(destination: String, tx: channel::Sender<Command>) -> Result<Worker> {
+        let client = Client::builder()
+            .connect_timeout(Duration::from_secs(5))
+            .build()?;
+
+        Ok(Worker {
+            client,
+            destination,
             tx,
-        }
+        })
     }
 
     pub fn run(&mut self) {
@@ -81,12 +89,9 @@ impl Worker {
         let form = multipart::Form::new()
             .part("file", file);
 
-        let client = Client::builder()
-            .connect_timeout(Duration::from_secs(5))
-            .build()?;
-
-        let resp = client
-            .post("http://localhost:7070/")
+        info!("uploading to {:?}", self.destination);
+        let resp = self.client
+            .post(&self.destination)
             .multipart(form)
             .send()?;
 

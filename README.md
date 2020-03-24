@@ -15,3 +15,8 @@
     brchd /var/log/*.log
     brchd # attaches status monitor
     brchd --wait # blocks until all pending uploads are done
+
+## Install dependencies
+
+    apt install pkg-config libsodium-dev
+    pacman -S pkg-config libsodium
