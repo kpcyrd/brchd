@@ -24,6 +24,7 @@ impl Worker {
     pub fn new(destination: String, tx: channel::Sender<Command>) -> Result<Worker> {
         let client = Client::builder()
             .connect_timeout(Duration::from_secs(5))
+            .timeout(None)
             .build()?;
 
         Ok(Worker {
