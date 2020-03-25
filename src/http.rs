@@ -1,6 +1,6 @@
 use actix_multipart::Multipart;
 use actix_multipart::Field;
-use actix_web::{middleware, web, App, Error, HttpResponse, HttpServer};
+use actix_web::{middleware, web, App, Error as ResponseError, HttpResponse, HttpServer};
 use crate::args::Args;
 use crate::config::UploadConfig;
 use crate::errors::*;
@@ -9,7 +9,7 @@ use futures::StreamExt;
 use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::fs::{self, File, OpenOptions};
 use std::sync::Arc;
 
@@ -44,7 +44,13 @@ fn random_id() -> String {
         .collect()
 }
 
-fn open_upload_dest(dest: String, filename: String) -> std::io::Result<File> {
+pub struct UploadHandle {
+    dest_path: PathBuf,
+    temp_path: String,
+    f: File,
+}
+
+fn open_upload_dest(dest: String, filename: String) -> std::io::Result<UploadHandle> {
     loop {
         let dt = Utc::now();
         let today = dt.format("%Y-%m-%d").to_string();
@@ -52,37 +58,56 @@ fn open_upload_dest(dest: String, filename: String) -> std::io::Result<File> {
         let id = random_id();
 
         let path = format!("{}/{}/{}-{}", dest, today, id, filename);
-        let filepath = Path::new(&path);
-        let parent = filepath.parent().expect("Destination path has no parent");
+        let dest_path = PathBuf::from(path);
+        let parent = dest_path.parent().expect("Destination path has no parent");
         fs::create_dir_all(parent)?;
 
-        if let Ok(f) = OpenOptions::new()
+        if let Ok(_f) = OpenOptions::new()
             .write(true)
             .create_new(true)
-            .open(filepath)
+            .open(&dest_path)
         {
-            return Ok(f);
+            let temp_path = format!("{}/{}/.{}-{}.part", dest, today, id, filename);
+            let f = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&temp_path)?;
+
+            return Ok(UploadHandle {
+                dest_path,
+                temp_path,
+                f,
+            });
         }
     }
 }
 
-async fn save_file(config: web::Data<Arc<UploadConfig>>, mut payload: Multipart) -> std::result::Result<HttpResponse, Error> {
+async fn recv_all(mut field: Field, mut f: File) -> std::result::Result<(), ResponseError> {
+    // Field in turn is stream of *Bytes* object
+    while let Some(chunk) = field.next().await {
+        let data = chunk?;
+        // filesystem operations are blocking, we have to use threadpool
+        f = web::block(move || f.write_all(&data).map(|_| f)).await?;
+    }
+    Ok(())
+}
+
+async fn save_file(config: web::Data<Arc<UploadConfig>>, mut payload: Multipart) -> std::result::Result<HttpResponse, ResponseError> {
     // iterate over multipart stream
     while let Some(item) = payload.next().await {
-        let mut field = item?;
+        let field = item?;
 
         if let Some(filename) = filename(&field)? {
             // filesystem operations are blocking, we have to use threadpool
             let upload_dest = config.destination.clone();
-            let mut f = web::block(|| open_upload_dest(upload_dest, filename))
+            let upload = web::block(|| open_upload_dest(upload_dest, filename))
                 .await?;
 
-            // Field in turn is stream of *Bytes* object
-            while let Some(chunk) = field.next().await {
-                let data = chunk?; // TODO: this was unwrap
-                // filesystem operations are blocking, we have to use threadpool
-                f = web::block(move || f.write_all(&data).map(|_| f)).await?;
-            }
+            recv_all(field, upload.f).await?;
+
+            fs::rename(upload.temp_path, upload.dest_path)
+                .context("Failed to move temp file to final destination")
+                .map_err(Error::from)?;
         }
     }
     Ok(HttpResponse::Ok().body("done.\n"))
