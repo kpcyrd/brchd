@@ -4,15 +4,10 @@ use brchd::daemon;
 use brchd::errors::*;
 use brchd::http;
 use brchd::ipc::IpcClient;
-use brchd::queue::QueueClient;
-use brchd::spider;
+use brchd::queue;
 use brchd::status::StatusWriter;
-use brchd::standalone::Standalone;
-use brchd::walkdir;
 use env_logger::Env;
-use reqwest::Client;
 use std::io::stdout;
-use std::time::Duration;
 use structopt::StructOpt;
 
 fn log_filter(verbose: u8) -> &'static str {
@@ -25,7 +20,7 @@ fn log_filter(verbose: u8) -> &'static str {
     }
 }
 
-async fn run() -> Result<()> {
+fn run() -> Result<()> {
     let args = Args::from_args();
 
     env_logger::init_from_env(Env::default()
@@ -34,7 +29,7 @@ async fn run() -> Result<()> {
     if args.daemon {
         daemon::run(&args)?;
     } else if args.http_daemon {
-        http::run(&args).await?;
+        http::run(args)?;
     } else if args.wait {
         let config = ClientConfig::load(&args)?;
         let mut client = IpcClient::connect(&config.socket)?;
@@ -47,26 +42,7 @@ async fn run() -> Result<()> {
     } else if let Some(shell) = args.gen_completions {
         Args::clap().gen_completions_to("brchd", shell, &mut stdout());
     } else if !args.paths.is_empty() {
-        let config = ClientConfig::load(&args)?;
-
-        let mut client: Box<dyn QueueClient> = if let Some(dest) = args.destination {
-            Box::new(Standalone::new(dest))
-        } else {
-            Box::new(IpcClient::connect(&config.socket)?)
-        };
-
-        let http = Client::builder()
-            .connect_timeout(Duration::from_secs(5))
-            .timeout(Duration::from_secs(60))
-            .build()?;
-
-        for path in &args.paths {
-            if path.starts_with("https://") || path.starts_with("https://") {
-                spider::queue(&mut client, &http, path).await?;
-            } else {
-                walkdir::queue(&mut client, path)?;
-            }
-        }
+        queue::run_add(args)?;
     } else {
         // TODO: add --once option
         let config = ClientConfig::load(&args)?;
@@ -81,15 +57,12 @@ async fn run() -> Result<()> {
     Ok(())
 }
 
-#[actix_rt::main]
-async fn main() -> std::io::Result<()> {
-    if let Err(err) = run().await {
+fn main() {
+    if let Err(err) = run() {
         eprintln!("Error: {}", err);
         for cause in err.iter_chain().skip(1) {
             eprintln!("Because: {}", cause);
         }
         std::process::exit(1);
     }
-
-    Ok(())
 }

@@ -127,7 +127,8 @@ fn index() -> HttpResponse {
     HttpResponse::Ok().body(html)
 }
 
-pub async fn run(args: &Args) -> Result<()> {
+#[actix_rt::main]
+pub async fn run(args: Args) -> Result<()> {
     let config = Arc::new(UploadConfig::load(&args)?);
 
     std::fs::create_dir_all(&config.destination)?;
