@@ -48,7 +48,7 @@ impl QueueClient for IpcClient {
 
 impl IpcClient {
     pub fn connect(path: &Path) -> Result<IpcClient> {
-        info!("connecting to {:?}", path);
+        debug!("connecting to {:?}", path);
         let stream = UnixStream::connect(path)
             .context("Failed to connect to brchd socket")?;
         let stream = BufStream::new(stream);

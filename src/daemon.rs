@@ -45,7 +45,7 @@ impl Server {
     }
 
     fn add_subscriber(&mut self, tx: channel::Sender<IpcMessage>) {
-        info!("adding new subscriber");
+        debug!("adding new subscriber");
         tx.send(IpcMessage::StatusResp(self.status.clone())).ok();
         self.subscribers.push(tx);
     }
@@ -74,7 +74,7 @@ impl Server {
         let after = self.subscribers.len();
 
         if before > after {
-            info!("disconnected {} subscribers", before - after);
+            debug!("disconnected {} subscribers", before - after);
         }
     }
 
@@ -175,13 +175,13 @@ impl Client {
                 },
             }
         }
-        info!("ipc client disconnected");
+        debug!("ipc client disconnected");
         Ok(())
     }
 }
 
 fn accept(tx: channel::Sender<Command>, stream: UnixStream) {
-    info!("accepted ipc connection");
+    debug!("accepted ipc connection");
     let mut client = Client::new(tx, stream);
     if let Err(err) = client.run() {
         error!("ipc connection failed: {}", err);
