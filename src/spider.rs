@@ -1,6 +1,6 @@
 use crate::errors::*;
 use crate::html;
-use crate::queue:: {Item, QueueClient};
+use crate::queue:: {Task, QueueClient};
 use reqwest::Client;
 use std::collections::VecDeque;
 use url::Url;
@@ -35,8 +35,8 @@ pub async fn queue(client: &mut Box<dyn QueueClient>, http: &Client, target: &st
                 info!("traversing into directory: {:?}", link_str);
                 queue.push_back(link);
             } else {
-                let item = Item::url(link);
-                client.push_work(item)?;
+                let task = Task::url(link);
+                client.push_work(task)?;
             }
         }
     }

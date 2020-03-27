@@ -46,7 +46,7 @@ impl Worker {
                 Target::Path(path) => {
                     (format!("{:?}", path), self.start_upload(&path))
                 },
-                Target::Url(_url) => todo!("url item"),
+                Target::Url(_url) => todo!("url task"),
             };
 
             if let Err(err) = result {

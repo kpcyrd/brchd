@@ -4,7 +4,7 @@ use crate::config::DaemonConfig;
 use crate::errors::*;
 use crate::ipc::{self, IpcMessage};
 use crate::uploader::Worker;
-use crate::queue::Item;
+use crate::queue::Task;
 use crate::status::{Status, ProgressUpdate};
 use crossbeam_channel::{self as channel, select};
 use std::collections::VecDeque;
@@ -16,17 +16,17 @@ use std::time::Duration;
 #[derive(Debug)]
 pub enum Command {
     Subscribe(channel::Sender<IpcMessage>),
-    PopQueue(channel::Sender<Item>),
-    PushQueue(Item),
+    PopQueue(channel::Sender<Task>),
+    PushQueue(Task),
     ProgressUpdate(ProgressUpdate),
 }
 
 struct Server {
     rx: channel::Receiver<Command>,
-    queue: VecDeque<Item>,
+    queue: VecDeque<Task>,
     queue_size: u64,
     total_workers: usize,
-    idle_workers: VecDeque<channel::Sender<Item>>,
+    idle_workers: VecDeque<channel::Sender<Task>>,
     subscribers: Vec<channel::Sender<IpcMessage>>,
     status: Status,
 }
@@ -78,7 +78,7 @@ impl Server {
         }
     }
 
-    fn pop_queue(&mut self, worker: channel::Sender<Item>) {
+    fn pop_queue(&mut self, worker: channel::Sender<Task>) {
         if let Some(task) = self.queue.pop_front() {
             self.queue_size -= task.size;
             debug!("assigning task to worker: {:?}", task);
@@ -90,7 +90,7 @@ impl Server {
         self.update_stats();
     }
 
-    fn push_work(&mut self, task: Item) {
+    fn push_work(&mut self, task: Task) {
         if let Some(worker) = self.idle_workers.pop_front() {
             debug!("assigning task to worker: {:?}", task);
             worker.send(task).expect("worker thread died");
@@ -110,7 +110,7 @@ impl Server {
                     match msg {
                         Ok(Command::Subscribe(tx)) => self.add_subscriber(tx),
                         Ok(Command::PopQueue(tx)) => self.pop_queue(tx),
-                        Ok(Command::PushQueue(item)) => self.push_work(item),
+                        Ok(Command::PushQueue(task)) => self.push_work(task),
                         Ok(Command::ProgressUpdate(update)) => self.update_progress(update),
                         Err(_) => break,
                     }
@@ -170,8 +170,8 @@ impl Client {
                 IpcMessage::Subscribe => self.subscribe_loop()?,
                 IpcMessage::StatusReq => todo!("status request"),
                 IpcMessage::StatusResp(_) => bail!("Unexpected ipc message"),
-                IpcMessage::Queue(item) => {
-                    self.write_server(Command::PushQueue(item));
+                IpcMessage::Queue(task) => {
+                    self.write_server(Command::PushQueue(task));
                 },
             }
         }

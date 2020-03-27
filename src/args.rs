@@ -7,6 +7,9 @@ use structopt::clap::{AppSettings, Shell};
 #[derive(Debug, StructOpt)]
 #[structopt(global_settings = &[AppSettings::ColoredHelp])]
 pub struct Args {
+    /// Verbose output
+    #[structopt(short="v", parse(from_occurrences))]
+    pub verbose: u8,
     pub paths: Vec<String>,
     /// Run the uploader daemon
     #[structopt(short="D", long, group="action")]

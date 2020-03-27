@@ -1,6 +1,6 @@
 use bufstream::BufStream;
 use crate::errors::*;
-use crate::queue::{Item, QueueClient};
+use crate::queue::{Task, QueueClient};
 use crate::status::Status;
 use serde::{Serialize, Deserialize};
 use std::io::prelude::*;
@@ -13,7 +13,7 @@ pub enum IpcMessage {
     Subscribe,
     StatusReq,
     StatusResp(Status),
-    Queue(Item),
+    Queue(Task),
 }
 
 pub fn read(stream: &mut BufStream<UnixStream>) -> Result<Option<IpcMessage>> {
@@ -40,8 +40,8 @@ pub struct IpcClient {
 }
 
 impl QueueClient for IpcClient {
-    fn push_work(&mut self, task: Item) -> Result<()> {
-        info!("pushing item: {:?}", task);
+    fn push_work(&mut self, task: Task) -> Result<()> {
+        info!("pushing task to daemon: {:?}", task);
         write(&mut self.stream, &IpcMessage::Queue(task))
     }
 }

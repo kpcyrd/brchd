@@ -4,21 +4,21 @@ use std::path::PathBuf;
 use url::Url;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Item {
+pub struct Task {
     pub target: Target,
     pub size: u64,
 }
 
-impl Item {
-    pub fn path(path: PathBuf, size: u64) -> Item {
-        Item {
+impl Task {
+    pub fn path(path: PathBuf, size: u64) -> Task {
+        Task {
             target: Target::Path(path),
             size,
         }
     }
 
-    pub fn url(url: Url) -> Item {
-        Item {
+    pub fn url(url: Url) -> Task {
+        Task {
             target: Target::Url(url),
             size: 0,
         }
@@ -32,5 +32,5 @@ pub enum Target {
 }
 
 pub trait QueueClient {
-    fn push_work(&mut self, task: Item) -> Result<()>;
+    fn push_work(&mut self, task: Task) -> Result<()>;
 }

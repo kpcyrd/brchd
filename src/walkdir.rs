@@ -1,5 +1,5 @@
 use crate::errors::*;
-use crate::queue::{Item, QueueClient};
+use crate::queue::{Task, QueueClient};
 use std::fs;
 use walkdir::WalkDir;
 
@@ -11,18 +11,17 @@ pub fn queue(client: &mut Box<dyn QueueClient>, target: &str) -> Result<()> {
         let ft = md.file_type();
         let path = fs::canonicalize(entry.into_path())?;
 
-        let item = if ft.is_file() {
-            Item::path(path, md.len())
+        let task = if ft.is_file() {
+            Task::path(path, md.len())
         } else if ft.is_symlink() {
             debug!("resolving symlink: {:?}", path);
             let md = fs::metadata(&path)?;
-            Item::path(path, md.len())
+            Task::path(path, md.len())
         } else {
             continue;
         };
 
-        info!("pushing item to daemon: {:?}", item);
-        client.push_work(item)?;
+        client.push_work(task)?;
     }
 
     Ok(())

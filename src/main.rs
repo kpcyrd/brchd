@@ -15,9 +15,21 @@ use std::io::stdout;
 use std::time::Duration;
 use structopt::StructOpt;
 
+fn log_filter(verbose: u8) -> &'static str {
+    match verbose {
+        0 => "actix_server=info,actix_web=info,brchd=warn",
+        1 => "actix_server=info,actix_web=info,brchd=info",
+        2 => "actix_server=info,actix_web=info,brchd=debug",
+        3 => "info,brchd=debug",
+        _ => "debug",
+    }
+}
+
 async fn run() -> Result<()> {
     let args = Args::from_args();
-    debug!("{:#?}", args);
+
+    env_logger::init_from_env(Env::default()
+        .default_filter_or(log_filter(args.verbose)));
 
     if args.daemon {
         daemon::run(&args)?;
@@ -71,9 +83,6 @@ async fn run() -> Result<()> {
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
-    env_logger::init_from_env(Env::default()
-        .default_filter_or("actix_server=info,actix_web=info,brchd=warn"));
-
     if let Err(err) = run().await {
         eprintln!("Error: {}", err);
         for cause in err.iter_chain().skip(1) {
