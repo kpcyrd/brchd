@@ -420,6 +420,7 @@ version = "0.1.0"
 dependencies = [
  "actix-multipart",
  "actix-rt",
+ "actix-service",
  "actix-web",
  "bufstream",
  "chrono",

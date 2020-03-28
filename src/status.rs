@@ -1,6 +1,6 @@
 use console::Term;
 use crate::errors::*;
-use humansize::{FileSize, file_size_opts as options};
+use humansize::{FileSize, file_size_opts};
 use serde::{Serialize, Deserialize};
 use std::cmp;
 use std::collections::BTreeMap;
@@ -119,7 +119,7 @@ impl StatusWriter {
         };
         let spaces = width - indicators;
 
-        let speed = p.speed.file_size(options::CONVENTIONAL)
+        let speed = p.speed.file_size(file_size_opts::CONVENTIONAL)
             .map_err(|e| format_err!("{}", e))?;
 
         let indicators = iter::repeat('=').take(indicators as usize).collect::<String>();
@@ -183,7 +183,7 @@ impl StatusWriter {
             self.height += 1;
         }
 
-        let queue_size = status.queue_size.file_size(options::CONVENTIONAL)
+        let queue_size = status.queue_size.file_size(file_size_opts::CONVENTIONAL)
             .map_err(|e| format_err!("{}", e))?;
 
         // print stats

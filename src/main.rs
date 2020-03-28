@@ -10,11 +10,18 @@ use env_logger::Env;
 use std::io::stdout;
 use structopt::StructOpt;
 
-fn log_filter(verbose: u8) -> &'static str {
+fn log_filter(args: &Args) -> &'static str {
+    let mut verbose = args.verbose;
+
+    // make sure verbose is always >= 1 for request logging
+    if args.http_daemon && verbose == 0 {
+        verbose = 1;
+    }
+
     match verbose {
-        0 => "actix_server=info,actix_web=info,brchd=warn",
-        1 => "actix_server=info,actix_web=info,brchd=info",
-        2 => "actix_server=info,actix_web=info,brchd=debug",
+        0 => "brchd=warn",
+        1 => "brchd=info",
+        2 => "brchd=debug",
         3 => "info,brchd=debug",
         _ => "debug",
     }
@@ -24,7 +31,7 @@ fn run() -> Result<()> {
     let args = Args::from_args();
 
     env_logger::init_from_env(Env::default()
-        .default_filter_or(log_filter(args.verbose)));
+        .default_filter_or(log_filter(&args)));
 
     if args.daemon {
         daemon::run(&args)?;
