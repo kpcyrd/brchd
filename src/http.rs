@@ -6,18 +6,18 @@ use actix_web::{web, App, Error as ResponseError, HttpResponse, HttpServer};
 use crate::args::Args;
 use crate::config::UploadConfig;
 use crate::errors::*;
-use chrono::Utc;
+use crate::pathspec::UploadContext;
 use futures::{Future, StreamExt};
 use futures::future::{ok, Ready};
 use humansize::{FileSize, file_size_opts};
-use rand::{thread_rng, Rng};
-use rand::distributions::Alphanumeric;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::fs::{self, File, OpenOptions};
 use std::sync::Arc;
 use std::task::{Context, Poll};
+
+const MAX_DEST_OPEN_ATTEMPTS: u8 = 12;
 
 fn filename(field: &Field) -> Result<Option<String>> {
     let content_type = match field.content_disposition() {
@@ -43,29 +43,29 @@ fn filename(field: &Field) -> Result<Option<String>> {
     Ok(Some(filename.to_string()))
 }
 
-fn random_id() -> String {
-    thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(4)
-        .collect()
-}
-
 pub struct UploadHandle {
     dest_path: PathBuf,
-    temp_path: String,
+    temp_path: PathBuf,
     f: File,
 }
 
-fn open_upload_dest(dest: String, filename: String) -> std::io::Result<UploadHandle> {
-    loop {
-        let dt = Utc::now();
-        let today = dt.format("%Y-%m-%d").to_string();
+fn open_upload_dest(dest: String, ctx: UploadContext) -> Result<UploadHandle> {
+    for _ in 0..MAX_DEST_OPEN_ATTEMPTS {
+        let (path, deterministic) = ctx.generate()?;
 
-        let id = random_id();
+        let dest = Path::new(&dest);
+        let dest_path = dest.join(path);
 
-        let path = format!("{}/{}/{}-{}", dest, today, id, filename);
-        let dest_path = PathBuf::from(path);
-        let parent = dest_path.parent().expect("Destination path has no parent");
+        let parent = dest_path.parent()
+            .ok_or_else(|| format_err!("Destination path has no parent"))?;
+        let filename = dest_path.file_name()
+            .ok_or_else(|| format_err!("Destination path has no file name"))?
+            .to_str()
+            .ok_or_else(|| format_err!("Filename contains invalid bytes"))?;
+
+        let temp_filename = format!(".{}.part", filename);
+        let temp_path = parent.join(temp_filename);
+
         fs::create_dir_all(parent)?;
 
         if let Ok(_f) = OpenOptions::new()
@@ -73,7 +73,6 @@ fn open_upload_dest(dest: String, filename: String) -> std::io::Result<UploadHan
             .create_new(true)
             .open(&dest_path)
         {
-            let temp_path = format!("{}/{}/.{}-{}.part", dest, today, id, filename);
             let f = OpenOptions::new()
                 .write(true)
                 .create_new(true)
@@ -84,8 +83,13 @@ fn open_upload_dest(dest: String, filename: String) -> std::io::Result<UploadHan
                 temp_path,
                 f,
             });
+        } else if deterministic {
+            warn!("refusing to overwrite {:?}", dest_path);
+            bail!("Target file already exists")
         }
     }
+
+    bail!("Failed to find new filename to upload to")
 }
 
 async fn recv_all(mut field: Field, mut f: File) -> std::result::Result<usize, ResponseError> {
@@ -108,9 +112,17 @@ async fn save_file(req: web::HttpRequest, config: web::Data<Arc<UploadConfig>>, 
         let field = item?;
 
         if let Some(filename) = filename(&field)? {
-            // filesystem operations are blocking, we have to use threadpool
+            let ctx = UploadContext::new(
+                config.path_format.clone(),
+                remote.clone(),
+                filename.clone(),
+                filename.clone(), // TODO: if available, set the relative path here
+                filename,         // TODO: if available, set the absolute path here
+            ); // TODO
             let upload_dest = config.destination.clone();
-            let upload = web::block(|| open_upload_dest(upload_dest, filename))
+
+            // filesystem operations are blocking, we have to use threadpool
+            let upload = web::block(|| open_upload_dest(upload_dest, ctx))
                 .await?;
             info!("{} writing upload into {:?}", remote, upload.temp_path);
 

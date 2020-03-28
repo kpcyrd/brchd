@@ -3,7 +3,8 @@ use chrono::{DateTime, Utc, Datelike, Timelike};
 use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
 
-pub struct Context {
+pub struct UploadContext {
+    format: String,
     dt: DateTime<Utc>,
     remote: String,
     filename: String,
@@ -11,9 +12,20 @@ pub struct Context {
     full_path: String,
 }
 
-impl Context {
-    pub fn generate(&self, format: &str) -> Result<(String, bool)> {
-        let mut chars = format.chars();
+impl UploadContext {
+    pub fn new(format: String, remote: String, filename: String, path: String, full_path: String) -> UploadContext {
+        UploadContext {
+            format,
+            dt: Utc::now(),
+            remote,
+            filename,
+            path,
+            full_path,
+        }
+    }
+
+    pub fn generate(&self) -> Result<(String, bool)> {
+        let mut chars = self.format.chars();
 
         let mut out = String::new();
         let mut deterministic = true;
@@ -61,8 +73,9 @@ impl Context {
 mod tests {
     use super::*;
 
-    fn ctx() -> Context {
-        Context {
+    fn ctx(format: &str) -> UploadContext {
+        UploadContext {
+            format: format.to_string(),
             dt: "1996-12-19T16:39:57Z".parse::<DateTime<Utc>>().unwrap(),
             remote: "192.0.2.1".to_string(),
             filename: "ohai.txt".to_string(),
@@ -73,38 +86,38 @@ mod tests {
 
     #[test]
     fn date_folders() {
-        let (p, d) = ctx().generate("%Y-%m-%d/%f").unwrap();
+        let (p, d) = ctx("%Y-%m-%d/%f").generate().unwrap();
         assert_eq!((p.as_str(), d), ("1996-12-19/ohai.txt", true));
     }
 
     #[test]
     fn http_mirror() {
-        let (p, d) = ctx().generate("%h/%P").unwrap();
+        let (p, d) = ctx("%h/%P").generate().unwrap();
         assert_eq!((p.as_str(), d), ("192.0.2.1/a/b/c/ohai.txt", true));
     }
 
     #[test]
     fn random_prefix() {
-        let (p, d) = ctx().generate("%r-%f").unwrap();
+        let (p, d) = ctx("%r-%f").generate().unwrap();
         assert_eq!(p.len(), 15);
         assert!(!d)
     }
 
     #[test]
     fn literal_percent() {
-        let (p, d) = ctx().generate("%%").unwrap();
+        let (p, d) = ctx("%%").generate().unwrap();
         assert_eq!((p.as_str(), d), ("%", true));
     }
 
     #[test]
     fn trailing_percent() {
-        let r = ctx().generate("foo%");
+        let r = ctx("foo%").generate();
         assert!(r.is_err());
     }
 
     #[test]
     fn invalid_escape() {
-        let r = ctx().generate("%/");
+        let r = ctx("%/").generate();
         assert!(r.is_err());
     }
 }

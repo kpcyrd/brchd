@@ -6,6 +6,7 @@ use std::net::{SocketAddr, IpAddr, Ipv6Addr};
 use std::path::{Path, PathBuf};
 
 const DEFAULT_CONCURRENCY: usize = 3;
+const DEFAULT_PATH_FORMAT: &str = "%p";
 
 fn find_config_file() -> Option<PathBuf> {
     if let Some(path) = dirs::config_dir() {
@@ -73,6 +74,10 @@ impl ConfigFile {
         if let Some(v) = args.concurrency {
             self.daemon.concurrency = Some(v);
         }
+
+        if let Some(v) = &args.path_format {
+            self.http.path_format = Some(v.clone());
+        }
     }
 
     pub fn load(args: &Args) -> Result<ConfigFile> {
@@ -119,9 +124,13 @@ impl ConfigFile {
         let bind_addr = self.http.bind_addr
             .unwrap_or_else(default_port);
 
+        let path_format = self.http.path_format
+            .unwrap_or_else(|| DEFAULT_PATH_FORMAT.to_string());
+
         Ok(UploadConfig {
             destination,
             bind_addr,
+            path_format,
         })
     }
 }
@@ -145,6 +154,7 @@ pub struct Daemon {
 pub struct Http {
     bind_addr: Option<SocketAddr>,
     destination: Option<String>,
+    path_format: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -177,6 +187,7 @@ impl ClientConfig {
 pub struct UploadConfig {
     pub bind_addr: SocketAddr,
     pub destination: String,
+    pub path_format: String,
 }
 
 impl UploadConfig {
