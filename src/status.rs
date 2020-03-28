@@ -6,7 +6,6 @@ use std::cmp;
 use std::collections::BTreeMap;
 use std::iter;
 use std::io::prelude::*;
-use std::path::Path;
 use std::time::{Instant, Duration};
 
 const MAX_FILENAME_LEN: usize = 20;
@@ -131,14 +130,7 @@ impl StatusWriter {
             String::new()
         };
 
-        let path = Path::new(p.label.as_str());
-        let filename = if let Some(file_name) = path.file_name() {
-            file_name.to_string_lossy().into_owned()
-        } else {
-            p.label.clone()
-        };
-
-        let mut filename = filename.as_str();
+        let mut filename = p.label.as_str();
         if filename.len() > MAX_FILENAME_LEN {
             filename = &filename[..MAX_FILENAME_LEN];
         }

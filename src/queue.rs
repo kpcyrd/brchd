@@ -18,9 +18,12 @@ pub struct Task {
 }
 
 impl Task {
-    pub fn path(path: PathBuf, size: u64) -> Task {
+    pub fn path(path: PathBuf, resolved: PathBuf, size: u64) -> Task {
         Task {
-            target: Target::Path(path),
+            target: Target::Path(PathTarget {
+                path,
+                resolved,
+            }),
             size,
         }
     }
@@ -35,8 +38,14 @@ impl Task {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Target {
-    Path(PathBuf),
+    Path(PathTarget),
     Url(Url),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PathTarget {
+    pub path: PathBuf,
+    pub resolved: PathBuf,
 }
 
 pub trait QueueClient {

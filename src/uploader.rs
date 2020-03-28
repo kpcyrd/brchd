@@ -1,6 +1,6 @@
 use crate::daemon::Command;
 use crate::errors::*;
-use crate::queue::Target;
+use crate::queue::{Target, PathTarget};
 use crate::status::{ProgressUpdate, UploadStart, UploadProgress, UploadEnd};
 use crossbeam_channel::{self as channel};
 use rand::{thread_rng, Rng};
@@ -9,7 +9,7 @@ use reqwest::blocking::{Client, multipart};
 use std::fs::{self, File};
 use std::io;
 use std::io::prelude::*;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{Instant, Duration};
 
 const UPDATE_NOTIFY_RATELIMIT: Duration = Duration::from_millis(250);
@@ -43,8 +43,11 @@ impl Worker {
 
             info!("starting task: {:?}", task);
             let (path, result) = match task.target {
-                Target::Path(path) => {
-                    (format!("{:?}", path), self.start_upload(&path))
+                Target::Path(PathTarget {
+                    path,
+                    resolved,
+                }) => {
+                    (format!("{:?}", path), self.start_upload(path, resolved))
                 },
                 Target::Url(_url) => todo!("url task"),
             };
@@ -57,9 +60,9 @@ impl Worker {
         }
     }
 
-    pub fn start_upload(&self, path: &Path) -> Result<()> {
-        let file = File::open(&path)?;
-        let metadata = fs::metadata(&path)?;
+    pub fn start_upload(&self, path: PathBuf, resolved: PathBuf) -> Result<()> {
+        let file = File::open(&resolved)?;
+        let metadata = fs::metadata(&resolved)?;
         let total = metadata.len();
 
         let (upload, key) = Upload::new(self.tx.clone(), file);
@@ -69,7 +72,7 @@ impl Worker {
             label: path.to_string_lossy().into_owned(),
             total,
         }));
-        let result = self.upload_file(upload, path, total);
+        let result = self.upload_file(upload, &path, total);
         notify(&self.tx, ProgressUpdate::UploadEnd(UploadEnd {
             key,
         }));
@@ -78,13 +81,11 @@ impl Worker {
     }
 
     fn upload_file(&self, upload: Upload<File>, path: &Path, total: u64) -> Result<()> {
-        let filename = path.file_name()
-            .ok_or_else(|| format_err!("Could not figure out filename of path"))?
-            .to_string_lossy()
+        let path = path.to_string_lossy()
             .into_owned();
 
         let file = multipart::Part::reader_with_length(upload, total)
-            .file_name(filename) // TODO: if absolute path, truncate the first slash
+            .file_name(path)
             .mime_str("application/octet-stream")?;
 
         let form = multipart::Form::new()

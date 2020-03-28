@@ -1,7 +1,7 @@
 use actix_multipart::Multipart;
 use actix_multipart::Field;
 use actix_service::{Service, Transform};
-use actix_web::{dev::ServiceRequest, dev::ServiceResponse, dev::ConnectionInfo};
+use actix_web::{dev::ServiceRequest, dev::ServiceResponse};
 use actix_web::{web, App, Error as ResponseError, HttpResponse, HttpServer};
 use crate::args::Args;
 use crate::config::UploadConfig;
@@ -11,6 +11,7 @@ use futures::{Future, StreamExt};
 use futures::future::{ok, Ready};
 use humansize::{FileSize, file_size_opts};
 use std::io::Write;
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::fs::{self, File, OpenOptions};
@@ -19,28 +20,39 @@ use std::task::{Context, Poll};
 
 const MAX_DEST_OPEN_ATTEMPTS: u8 = 12;
 
-fn filename(field: &Field) -> Result<Option<String>> {
+fn filename(field: &Field) -> Result<Option<(String, String)>> {
     let content_type = match field.content_disposition() {
         Some(x) => x,
         _ => return Ok(None),
     };
-    let filename = match content_type.get_filename() {
+    let path = match content_type.get_filename() {
         Some(x) => x,
         _ => return Ok(None),
     };
 
-    // TODO: consider just writing a secure_join
-    let path = Path::new(filename);
-    for x in path.iter() {
+    let p = Path::new(path);
+    let mut i = p.iter().peekable();
+
+    let mut pb = PathBuf::new();
+    while let Some(x) = i.next() {
         match x.to_str() {
-            Some("/") => bail!("Filename is absolute path"),
+            Some("/") => (), // skip this
             Some("..") => bail!("Directory traversal detected"),
+            Some(p) => {
+                pb.push(&p);
+                if i.peek().is_none() {
+                    return Ok(Some((
+                        // we've ensured that the path is valid utf-8, unwrap is fine
+                        pb.to_str().unwrap().to_string(),
+                        p.to_string(),
+                    )));
+                }
+            },
             None => bail!("Filename is invalid utf8"),
-            _ => (),
         }
     }
 
-    Ok(Some(filename.to_string()))
+    bail!("Path is an empty string")
 }
 
 pub struct UploadHandle {
@@ -105,33 +117,33 @@ async fn recv_all(mut field: Field, mut f: File) -> std::result::Result<usize, R
 }
 
 async fn save_file(req: web::HttpRequest, config: web::Data<Arc<UploadConfig>>, mut payload: Multipart) -> std::result::Result<HttpResponse, ResponseError> {
-    let remote = remote(&req.connection_info());
+    let remote_addr = remote_addr(&req.peer_addr());
+    let remote_sock = remote_sock(&req.peer_addr());
 
     // iterate over multipart stream
     while let Some(item) = payload.next().await {
         let field = item?;
 
-        if let Some(filename) = filename(&field)? {
+        if let Some((path, filename)) = filename(&field)? {
             let ctx = UploadContext::new(
                 config.path_format.clone(),
-                remote.clone(),
-                filename.clone(),
-                filename.clone(), // TODO: if available, set the relative path here
-                filename,         // TODO: if available, set the absolute path here
-            ); // TODO
+                remote_addr.clone(),
+                filename,
+                path,
+            );
             let upload_dest = config.destination.clone();
 
             // filesystem operations are blocking, we have to use threadpool
             let upload = web::block(|| open_upload_dest(upload_dest, ctx))
                 .await?;
-            info!("{} writing upload into {:?}", remote, upload.temp_path);
+            info!("{} writing upload into {:?}", remote_sock, upload.temp_path);
 
             let size = recv_all(field, upload.f).await?;
 
             let size = size.file_size(file_size_opts::CONVENTIONAL)
                 .map_err(|e| format_err!("{}", e))?;
 
-            info!("{} moving upload {:?} -> {:?} ({})", remote, upload.temp_path, upload.dest_path, size);
+            info!("{} moving upload {:?} -> {:?} ({})", remote_sock, upload.temp_path, upload.dest_path, size);
             fs::rename(upload.temp_path, upload.dest_path)
                 .context("Failed to move temp file to final destination")
                 .map_err(Error::from)?;
@@ -207,8 +219,14 @@ where
     }
 }
 
-fn remote(ci: &ConnectionInfo) -> String {
-    ci.remote()
+fn remote_addr(sa: &Option<SocketAddr>) -> String {
+    sa
+        .map(|r| r.ip().to_string())
+        .unwrap_or_else(|| "-".to_string())
+}
+
+fn remote_sock(sa: &Option<SocketAddr>) -> String {
+    sa
         .map(|r| r.to_string())
         .unwrap_or_else(|| "-".to_string())
 }
@@ -221,7 +239,7 @@ struct LogResponse {
 
 impl LogResponse {
     fn new(req: &ServiceRequest) -> LogResponse {
-        let remote = remote(&req.connection_info());
+        let remote = remote_sock(&req.peer_addr());
 
         let request_line = if req.query_string().is_empty() {
             format!(

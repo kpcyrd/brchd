@@ -9,18 +9,16 @@ pub struct UploadContext {
     remote: String,
     filename: String,
     path: String,
-    full_path: String,
 }
 
 impl UploadContext {
-    pub fn new(format: String, remote: String, filename: String, path: String, full_path: String) -> UploadContext {
+    pub fn new(format: String, remote: String, filename: String, path: String) -> UploadContext {
         UploadContext {
             format,
             dt: Utc::now(),
             remote,
             filename,
             path,
-            full_path,
         }
     }
 
@@ -46,7 +44,7 @@ impl UploadContext {
                     Some('h') => out.push_str(&self.remote),
                     Some('f') => out.push_str(&self.filename),
                     Some('p') => out.push_str(&self.path),
-                    Some('P') => out.push_str(&self.full_path),
+                    // Some('P') => out.push_str(&self.full_path),
 
                     Some('r') => {
                         deterministic = false;
@@ -80,7 +78,7 @@ mod tests {
             remote: "192.0.2.1".to_string(),
             filename: "ohai.txt".to_string(),
             path: "b/c/ohai.txt".to_string(),
-            full_path: "a/b/c/ohai.txt".to_string(),
+            // full_path: "a/b/c/ohai.txt".to_string(),
         }
     }
 
@@ -90,11 +88,13 @@ mod tests {
         assert_eq!((p.as_str(), d), ("1996-12-19/ohai.txt", true));
     }
 
+    /*
     #[test]
     fn http_mirror() {
         let (p, d) = ctx("%h/%P").generate().unwrap();
         assert_eq!((p.as_str(), d), ("192.0.2.1/a/b/c/ohai.txt", true));
     }
+    */
 
     #[test]
     fn random_prefix() {
