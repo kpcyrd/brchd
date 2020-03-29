@@ -9,7 +9,7 @@ use reqwest::blocking::{Client, multipart};
 use std::fs::{self, File};
 use std::io;
 use std::io::prelude::*;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::{Instant, Duration};
 
 const UPDATE_NOTIFY_RATELIMIT: Duration = Duration::from_millis(250);
@@ -61,6 +61,14 @@ impl Worker {
     }
 
     pub fn start_upload(&self, path: PathBuf, resolved: PathBuf) -> Result<()> {
+        // TODO: this works for now, but we need to revisit this
+        // TODO: this doesn't remove /../ inside the path
+        let mut path = path.to_string_lossy().into_owned();
+        let label = path.clone();
+        while path.starts_with("../") {
+            path = path[3..].to_string();
+        }
+
         let file = File::open(&resolved)?;
         let metadata = fs::metadata(&resolved)?;
         let total = metadata.len();
@@ -69,10 +77,10 @@ impl Worker {
 
         notify(&self.tx, ProgressUpdate::UploadStart(UploadStart {
             key: key.clone(),
-            label: path.to_string_lossy().into_owned(),
+            label,
             total,
         }));
-        let result = self.upload_file(upload, &path, total);
+        let result = self.upload_file(upload, path, total);
         notify(&self.tx, ProgressUpdate::UploadEnd(UploadEnd {
             key,
         }));
@@ -80,10 +88,7 @@ impl Worker {
         result
     }
 
-    fn upload_file(&self, upload: Upload<File>, path: &Path, total: u64) -> Result<()> {
-        let path = path.to_string_lossy()
-            .into_owned();
-
+    fn upload_file(&self, upload: Upload<File>, path: String, total: u64) -> Result<()> {
         let file = multipart::Part::reader_with_length(upload, total)
             .file_name(path)
             .mime_str("application/octet-stream")?;
@@ -98,7 +103,7 @@ impl Worker {
             .send()?;
 
         info!("uploaded: {:?}", resp);
-        let body = resp.text();
+        let body = resp.text()?;
         info!("uploaded(text): {:?}", body);
 
         Ok(())
