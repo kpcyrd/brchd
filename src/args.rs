@@ -36,6 +36,8 @@ pub struct Args {
     pub socket: Option<PathBuf>,
     #[structopt(short="c", long, env="BRCHD_CONFIG")]
     pub config: Option<PathBuf>,
+    #[structopt(short="F", long, env="BRCHD_PATH_FORMAT")]
+    pub path_format: Option<String>,
 }
 
 fn parse_addr(s: &str) -> Result<SocketAddr> {
