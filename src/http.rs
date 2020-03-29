@@ -130,6 +130,7 @@ async fn save_file(req: web::HttpRequest, config: web::Data<Arc<UploadConfig>>, 
                 remote_addr.clone(),
                 filename,
                 path,
+                None,
             );
             let upload_dest = config.destination.clone();
 

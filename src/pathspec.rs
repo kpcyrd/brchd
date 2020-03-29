@@ -9,16 +9,18 @@ pub struct UploadContext {
     remote: String,
     filename: String,
     path: String,
+    full_path: Option<String>,
 }
 
 impl UploadContext {
-    pub fn new(format: String, remote: String, filename: String, path: String) -> UploadContext {
+    pub fn new(format: String, remote: String, filename: String, path: String, full_path: Option<String>) -> UploadContext {
         UploadContext {
             format,
             dt: Utc::now(),
             remote,
             filename,
             path,
+            full_path,
         }
     }
 
@@ -44,7 +46,13 @@ impl UploadContext {
                     Some('h') => out.push_str(&self.remote),
                     Some('f') => out.push_str(&self.filename),
                     Some('p') => out.push_str(&self.path),
-                    // Some('P') => out.push_str(&self.full_path),
+                    Some('P') => {
+                        if let Some(full_path) = &self.full_path {
+                            out.push_str(&full_path)
+                        } else {
+                            out.push_str(&self.path)
+                        }
+                    },
 
                     Some('r') => {
                         deterministic = false;
@@ -78,7 +86,7 @@ mod tests {
             remote: "192.0.2.1".to_string(),
             filename: "ohai.txt".to_string(),
             path: "b/c/ohai.txt".to_string(),
-            // full_path: "a/b/c/ohai.txt".to_string(),
+            full_path: Some("a/b/c/ohai.txt".to_string()),
         }
     }
 
