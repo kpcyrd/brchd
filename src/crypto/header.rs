@@ -15,7 +15,7 @@ const MAGIC_SIZE: usize = 8;
 pub const HEADER_INTRO_LEN: usize = MAGIC_SIZE + NONCEBYTES + PUBLICKEYBYTES + 2;
 
 const PADDING_SIZE: usize = 48;
-const PADDING_BASELINE: usize = 91;
+const PADDING_BASELINE: usize = 98;
 
 type Intro = (Nonce, PublicKey, u16);
 pub type RawHeader = (Nonce, PublicKey, Vec<u8>);
@@ -67,12 +67,11 @@ impl Header {
     }
 
     fn pad_header(&self, header: &mut Vec<u8>) {
+        // everything below this threshold doesn't have a filename set
         if header.len() >= PADDING_BASELINE {
             let n = (header.len() - PADDING_BASELINE) % PADDING_SIZE;
             if n > 0 {
                 header.extend(" ".repeat(PADDING_SIZE - n).bytes());
-            } else {
-                header.extend(" ".repeat(PADDING_SIZE).bytes());
             }
         }
     }
@@ -176,27 +175,6 @@ mod tests {
     }
 
     #[test]
-    fn const_len_filename_missing() {
-        let sk = sec();
-        let key = gen_key();
-        let (_, header) = Stream::init_push(&key).unwrap();
-
-        let h1 = Header {
-            key: key.0.to_vec(),
-            next_header: header.0.to_vec(),
-            name: Some("ohai.txt".to_string()),
-        }.encrypt(&sk.public_key()).expect("encrypt");
-
-        let h2 = Header {
-            key: key.0.to_vec(),
-            next_header: header.0.to_vec(),
-            name: None,
-        }.encrypt(&sk.public_key()).expect("encrypt");
-
-        assert_eq!(h1.len(), h2.len());
-    }
-
-    #[test]
     fn shortest_padded_header() {
         let sk = sec();
         let key = gen_key();
@@ -208,7 +186,7 @@ mod tests {
             name: None,
         }.encrypt(&sk.public_key()).expect("encrypt");
 
-        assert_eq!(h.len(), 221);
+        assert_eq!(h.len(), 173);
     }
 
     #[test]
@@ -219,7 +197,7 @@ mod tests {
         let h = Header {
             key: key.0.to_vec(),
             next_header: header.0.to_vec(),
-            name: None,
+            name: Some(String::new()),
         };
         let buf = serde_json::to_vec(&h).unwrap();
         assert_eq!(buf.len(), PADDING_BASELINE);
