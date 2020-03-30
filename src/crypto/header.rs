@@ -14,21 +14,30 @@ const MAGIC: &[u8] = b"\x00#BRCHD\x00";
 const MAGIC_SIZE: usize = 8;
 pub const HEADER_INTRO_LEN: usize = MAGIC_SIZE + NONCEBYTES + PUBLICKEYBYTES + 2;
 
+const PADDING_SIZE: usize = 48;
+const PADDING_BASELINE: usize = 91;
+
 type Intro = (Nonce, PublicKey, u16);
 pub type RawHeader = (Nonce, PublicKey, Vec<u8>);
 
+use base64_serde::base64_serde_type;
+use base64::STANDARD;
+base64_serde_type!(Base64Standard, STANDARD);
+
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Header {
+    #[serde(rename="k", with="Base64Standard")]
     pub key: Vec<u8>,
+    #[serde(rename="h", with="Base64Standard")]
     pub next_header: Vec<u8>,
+    #[serde(rename="n", skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
 }
 
 impl Header {
     pub fn encrypt(&self, pubkey: &PublicKey) -> Result<Vec<u8>> {
-        let header = serde_json::to_vec(self)?;
-
-        // TODO: we should pad the header because of the file name
+        let mut header = serde_json::to_vec(self)?;
+        self.pad_header(&mut header);
 
         let nonce = box_::gen_nonce();
         let (pk, sk) = box_::gen_keypair();
@@ -55,6 +64,17 @@ impl Header {
 
         Stream::init_pull(&next_header, &key)
             .map_err(|_| format_err!("Failed to open file decryption stream"))
+    }
+
+    fn pad_header(&self, header: &mut Vec<u8>) {
+        if header.len() >= PADDING_BASELINE {
+            let n = (header.len() - PADDING_BASELINE) % PADDING_SIZE;
+            if n > 0 {
+                header.extend(" ".repeat(PADDING_SIZE - n).bytes());
+            } else {
+                header.extend(" ".repeat(PADDING_SIZE).bytes());
+            }
+        }
     }
 }
 
@@ -110,6 +130,7 @@ fn pubkey(input: &[u8]) -> IResult<&[u8], PublicKey> {
 
 #[cfg(test)]
 mod tests {
+    use sodiumoxide::crypto::secretstream::{gen_key, Stream};
     use super::*;
 
     fn sec() -> SecretKey {
@@ -131,5 +152,76 @@ mod tests {
         println!("header: {:?}", header);
         let h2 = decrypt_slice(&header, &sk).expect("decrypt");
         assert_eq!(h1, h2);
+    }
+
+    #[test]
+    fn const_len_filename_varies() {
+        let sk = sec();
+        let key = gen_key();
+        let (_, header) = Stream::init_push(&key).unwrap();
+
+        let h1 = Header {
+            key: key.0.to_vec(),
+            next_header: header.0.to_vec(),
+            name: Some("ohai.txt".to_string()),
+        }.encrypt(&sk.public_key()).expect("encrypt");
+
+        let h2 = Header {
+            key: key.0.to_vec(),
+            next_header: header.0.to_vec(),
+            name: Some("this/file/is/slightly/longer.txt".to_string()),
+        }.encrypt(&sk.public_key()).expect("encrypt");
+
+        assert_eq!(h1.len(), h2.len());
+    }
+
+    #[test]
+    fn const_len_filename_missing() {
+        let sk = sec();
+        let key = gen_key();
+        let (_, header) = Stream::init_push(&key).unwrap();
+
+        let h1 = Header {
+            key: key.0.to_vec(),
+            next_header: header.0.to_vec(),
+            name: Some("ohai.txt".to_string()),
+        }.encrypt(&sk.public_key()).expect("encrypt");
+
+        let h2 = Header {
+            key: key.0.to_vec(),
+            next_header: header.0.to_vec(),
+            name: None,
+        }.encrypt(&sk.public_key()).expect("encrypt");
+
+        assert_eq!(h1.len(), h2.len());
+    }
+
+    #[test]
+    fn shortest_padded_header() {
+        let sk = sec();
+        let key = gen_key();
+        let (_, header) = Stream::init_push(&key).unwrap();
+
+        let h = Header {
+            key: key.0.to_vec(),
+            next_header: header.0.to_vec(),
+            name: None,
+        }.encrypt(&sk.public_key()).expect("encrypt");
+
+        assert_eq!(h.len(), 221);
+    }
+
+    #[test]
+    fn padding_baseline_is_correct() {
+        let key = gen_key();
+        let (_, header) = Stream::init_push(&key).unwrap();
+
+        let h = Header {
+            key: key.0.to_vec(),
+            next_header: header.0.to_vec(),
+            name: None,
+        };
+        let buf = serde_json::to_vec(&h).unwrap();
+        assert_eq!(buf.len(), PADDING_BASELINE);
     }
 }
