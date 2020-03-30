@@ -2,6 +2,7 @@ extern crate markup5ever_rcdom as rcdom;
 
 pub mod args;
 pub mod config;
+pub mod crypto;
 pub mod daemon;
 pub mod errors;
 pub mod html;

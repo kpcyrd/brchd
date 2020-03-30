@@ -17,6 +17,12 @@ pub struct Args {
     /// Run the http uploads receiver
     #[structopt(short="H", long, group="action")]
     pub http_daemon: bool,
+    /// Run the http uploads receiver
+    #[structopt(short="E", long, group="action")]
+    pub encrypt: bool,
+    /// Run the http uploads receiver
+    #[structopt(short="D", long, group="action")]
+    pub decrypt: bool,
     /// Generate shell completions
     #[structopt(long, possible_values=&Shell::variants(), group="action")]
     pub gen_completions: Option<Shell>,

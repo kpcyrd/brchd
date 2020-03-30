@@ -37,6 +37,10 @@ fn run() -> Result<()> {
         daemon::run(&args)?;
     } else if args.http_daemon {
         http::run(args)?;
+    } else if args.encrypt {
+        todo!()
+    } else if args.decrypt {
+        todo!()
     } else if args.wait {
         let config = ClientConfig::load(&args)?;
         let mut client = IpcClient::connect(&config.socket)?;
