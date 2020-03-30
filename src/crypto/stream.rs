@@ -1,13 +1,12 @@
 use crate::crypto::header;
 use crate::errors::*;
-use sodiumoxide::crypto::box_::SecretKey;
-// use sodiumoxide::crypto::secretstream::{Header, Key, Stream, Pull, Tag};
-use sodiumoxide::crypto::secretstream::{Stream, Pull, Tag, ABYTES};
+use sodiumoxide::crypto::box_::{SecretKey, PublicKey};
+use sodiumoxide::crypto::secretstream::{self, Stream, Push, Pull, Tag, ABYTES};
 use std::fs::File;
 use std::path::Path;
 use std::io::prelude::*;
 
-const CHUNK_SIZE: usize = 4096;
+pub const CHUNK_SIZE: usize = 4096;
 
 pub struct CryptoReader {
     f: File,
@@ -52,20 +51,63 @@ impl CryptoReader {
         self.header.name.as_ref()
     }
 
-    pub fn pull(&mut self, out: &mut Vec<u8>) -> Result<bool> {
+    pub fn pull(&mut self, out: &mut Vec<u8>) -> Result<()> {
         let mut buf = [0u8; CHUNK_SIZE + ABYTES];
         let n = self.f.read(&mut buf)?;
         if n == 0 {
             bail!("Unexpected end of file");
         }
+        debug!("read {} bytes from file", n);
 
         let tag = self.stream.pull_to_vec(&buf[..n], None, out)
             .map_err(|_| format_err!("Failed to open secretstream"))?;
+        debug!("decrypted {} bytes, tag={:?}", out.len(), tag);
 
-        match tag {
-            Tag::Message => Ok(true),
-            Tag::Final => Ok(false),
-            _ => bail!("Unexpected stream tag"),
-        }
+        Ok(())
+    }
+
+    pub fn is_not_finalized(&self) -> bool {
+        self.stream.is_not_finalized()
+    }
+}
+
+pub struct CryptoWriter {
+    f: File,
+    stream: Stream<Push>,
+}
+
+impl CryptoWriter {
+    pub fn init(mut f: File, pubkey: &PublicKey) -> Result<CryptoWriter> {
+        let key = secretstream::gen_key();
+        let (stream, header) = Stream::init_push(&key).unwrap();
+
+        let header = header::Header {
+            key: key.0.to_vec(),
+            next_header: header.0.to_vec(),
+            name: None,
+        };
+        let header = header.encrypt(pubkey)?;
+        f.write_all(&header)?;
+
+        Ok(CryptoWriter {
+            f,
+            stream,
+        })
+    }
+
+    pub fn push(&mut self, buf: &[u8], is_final: bool) -> Result<()> {
+        let tag = if !is_final {
+            Tag::Message
+        } else {
+            Tag::Final
+        };
+
+        debug!("encrypting {} bytes, tag={:?}", buf.len(), tag);
+        let c = self.stream.push(buf, None, tag)
+            .map_err(|_| format_err!("Failed to write to secretstream"))?;
+        self.f.write_all(&c)?;
+        debug!("wrote {} bytes to file", c.len());
+
+        Ok(())
     }
 }

@@ -17,12 +17,17 @@ pub struct Args {
     /// Run the http uploads receiver
     #[structopt(short="H", long, group="action")]
     pub http_daemon: bool,
-    /// Run the http uploads receiver
-    #[structopt(short="E", long, group="action")]
+
+    /// Encrypt files
+    #[structopt(long, group="action")]
     pub encrypt: bool,
-    /// Run the http uploads receiver
-    #[structopt(short="D", long, group="action")]
+    /// Decrypt files
+    #[structopt(long, group="action")]
     pub decrypt: bool,
+    /// Generate a keypair for encryption
+    #[structopt(long, group="action")]
+    pub keygen: bool,
+
     /// Generate shell completions
     #[structopt(long, possible_values=&Shell::variants(), group="action")]
     pub gen_completions: Option<Shell>,
@@ -44,6 +49,8 @@ pub struct Args {
     pub config: Option<PathBuf>,
     #[structopt(short="F", long, env="BRCHD_PATH_FORMAT")]
     pub path_format: Option<String>,
+    #[structopt(long, env="BRCHD_PUBKEY")]
+    pub pubkey: Option<String>,
 }
 
 fn parse_addr(s: &str) -> Result<SocketAddr> {

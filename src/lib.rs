@@ -13,5 +13,6 @@ pub mod queue;
 pub mod spider;
 pub mod standalone;
 pub mod status;
+pub mod temp;
 pub mod uploader;
 pub mod walkdir;
