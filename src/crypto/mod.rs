@@ -74,7 +74,8 @@ pub fn run_decrypt(args: Args) -> Result<()> {
 
     walk(&args.paths, |path| {
         debug!("peeking into {:?}", path);
-        if let Some(mut r) = CryptoReader::open(path, &config.seckey)? {
+        let file = File::open(path)?;
+        if let Some(mut r) = CryptoReader::init(file, &config.seckey)? {
             info!("decrypting {:?}", path);
 
             let (_, temp_path) = temp::partial_path(&path)

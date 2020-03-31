@@ -2,23 +2,19 @@ use crate::crypto::header;
 use crate::errors::*;
 use sodiumoxide::crypto::box_::{SecretKey, PublicKey};
 use sodiumoxide::crypto::secretstream::{self, Stream, Push, Pull, Tag, ABYTES};
-use std::fs::File;
-use std::path::Path;
 use std::io::prelude::*;
 
 pub const CHUNK_SIZE: usize = 4096;
 
-pub struct CryptoReader {
-    f: File,
+pub struct CryptoReader<T> {
+    r: T,
     header: header::Header,
     stream: Stream<Pull>,
 }
 
-impl CryptoReader {
-    pub fn open(path: &Path, sk: &SecretKey) -> Result<Option<CryptoReader>> {
-        let mut f = File::open(path)?;
-
-        let (nonce, pk, header) = match CryptoReader::read_header(&mut f) {
+impl<T: Read> CryptoReader<T> {
+    pub fn init(mut r: T, sk: &SecretKey) -> Result<Option<CryptoReader<T>>> {
+        let (nonce, pk, header) = match CryptoReader::read_header(&mut r) {
             Ok(h) => h,
             Err(_) => return Ok(None),
         };
@@ -27,21 +23,21 @@ impl CryptoReader {
         let stream = header.open_stream_pull()?;
 
         Ok(Some(CryptoReader {
-            f,
+            r,
             header,
             stream,
         }))
     }
 
-    fn read_header(f: &mut File) -> Result<header::RawHeader> {
+    fn read_header(r: &mut T) -> Result<header::RawHeader> {
         let mut intro = [0u8; header::HEADER_INTRO_LEN];
-        f.read_exact(&mut intro)
+        r.read_exact(&mut intro)
             .context("Failed to read encryption header intro")?;
 
         let (nonce, pk, len) = header::parse_intro(&intro)?;
 
         let mut header = vec![0u8; len as usize];
-        f.read_exact(&mut header)
+        r.read_exact(&mut header)
             .context("Failed to read encryption header body")?;
 
         Ok((nonce, pk, header))
@@ -53,7 +49,7 @@ impl CryptoReader {
 
     pub fn pull(&mut self, out: &mut Vec<u8>) -> Result<()> {
         let mut buf = [0u8; CHUNK_SIZE + ABYTES];
-        let n = self.f.read(&mut buf)?;
+        let n = self.r.read(&mut buf)?;
         if n == 0 {
             bail!("Unexpected end of file");
         }
@@ -71,13 +67,13 @@ impl CryptoReader {
     }
 }
 
-pub struct CryptoWriter {
-    f: File,
+pub struct CryptoWriter<T> {
+    w: T,
     stream: Stream<Push>,
 }
 
-impl CryptoWriter {
-    pub fn init(mut f: File, pubkey: &PublicKey) -> Result<CryptoWriter> {
+impl<T: Write> CryptoWriter<T> {
+    pub fn init(mut w: T, pubkey: &PublicKey) -> Result<CryptoWriter<T>> {
         let key = secretstream::gen_key();
         let (stream, header) = Stream::init_push(&key).unwrap();
 
@@ -87,10 +83,10 @@ impl CryptoWriter {
             name: None,
         };
         let header = header.encrypt(pubkey)?;
-        f.write_all(&header)?;
+        w.write_all(&header)?;
 
         Ok(CryptoWriter {
-            f,
+            w,
             stream,
         })
     }
@@ -105,9 +101,41 @@ impl CryptoWriter {
         debug!("encrypting {} bytes, tag={:?}", buf.len(), tag);
         let c = self.stream.push(buf, None, tag)
             .map_err(|_| format_err!("Failed to write to secretstream"))?;
-        self.f.write_all(&c)?;
+        self.w.write_all(&c)?;
         debug!("wrote {} bytes to file", c.len());
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sec() -> SecretKey {
+        SecretKey::from_slice(&[
+            75, 34, 106, 31, 123, 150, 128, 79, 208, 89, 61, 66, 53, 35, 62, 111,
+            41, 78, 178, 55, 187, 47, 244, 155, 61, 206, 49, 130, 219, 28, 104, 5,
+        ]).unwrap()
+    }
+
+    #[test]
+    fn roundtrip() {
+        let sk = sec();
+        let pk = sk.public_key();
+
+        let mut file = Vec::new();
+        let mut w = CryptoWriter::init(&mut file, &pk).unwrap();
+        w.push(b"ohai!\n", true).unwrap();
+
+        let mut cur = std::io::Cursor::new(&file);
+        let mut r = CryptoReader::init(&mut cur, &sk).unwrap().unwrap();
+        assert!(r.is_not_finalized());
+
+        let mut buf = Vec::new();
+        r.pull(&mut buf).unwrap();
+        assert!(!r.is_not_finalized());
+
+        assert_eq!(&buf, b"ohai!\n");
     }
 }
