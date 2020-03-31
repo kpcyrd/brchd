@@ -7,6 +7,7 @@ use crate::args::Args;
 use crate::config::UploadConfig;
 use crate::errors::*;
 use crate::pathspec::UploadContext;
+use crate::temp;
 use futures::{Future, StreamExt};
 use futures::future::{ok, Ready};
 use humansize::{FileSize, file_size_opts};
@@ -68,16 +69,8 @@ fn open_upload_dest(dest: String, ctx: UploadContext) -> Result<UploadHandle> {
         let dest = Path::new(&dest);
         let dest_path = dest.join(path);
 
-        let parent = dest_path.parent()
-            .ok_or_else(|| format_err!("Destination path has no parent"))?;
-        let filename = dest_path.file_name()
-            .ok_or_else(|| format_err!("Destination path has no file name"))?
-            .to_str()
-            .ok_or_else(|| format_err!("Filename contains invalid bytes"))?;
-
-        let temp_filename = format!(".{}.part", filename);
-        let temp_path = parent.join(temp_filename);
-
+        let (parent, temp_path) = temp::partial_path(&dest_path)
+            .context("Failed to get partial path")?;
         fs::create_dir_all(parent)?;
 
         if let Ok(_f) = OpenOptions::new()

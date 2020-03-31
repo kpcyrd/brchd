@@ -1,5 +1,6 @@
 use brchd::args::Args;
 use brchd::config::ClientConfig;
+use brchd::crypto;
 use brchd::daemon;
 use brchd::errors::*;
 use brchd::http;
@@ -23,7 +24,8 @@ fn log_filter(args: &Args) -> &'static str {
         1 => "brchd=info",
         2 => "brchd=debug",
         3 => "info,brchd=debug",
-        _ => "debug",
+        4 => "debug",
+        _ => "debug,brchd=trace",
     }
 }
 
@@ -37,6 +39,12 @@ fn run() -> Result<()> {
         daemon::run(&args)?;
     } else if args.http_daemon {
         http::run(args)?;
+    } else if args.encrypt {
+        crypto::run_encrypt(args)?;
+    } else if args.decrypt {
+        crypto::run_decrypt(args)?;
+    } else if args.keygen {
+        crypto::run_keygen(args)?;
     } else if args.wait {
         let config = ClientConfig::load(&args)?;
         let mut client = IpcClient::connect(&config.socket)?;

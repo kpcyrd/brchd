@@ -2,6 +2,7 @@ extern crate markup5ever_rcdom as rcdom;
 
 pub mod args;
 pub mod config;
+pub mod crypto;
 pub mod daemon;
 pub mod errors;
 pub mod html;
@@ -12,5 +13,6 @@ pub mod queue;
 pub mod spider;
 pub mod standalone;
 pub mod status;
+pub mod temp;
 pub mod uploader;
 pub mod walkdir;

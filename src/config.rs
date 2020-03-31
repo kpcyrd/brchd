@@ -1,6 +1,7 @@
 use crate::args::Args;
 use crate::errors::*;
 use serde::{Serialize, Deserialize};
+use sodiumoxide::crypto::box_::{PublicKey, SecretKey};
 use std::fs;
 use std::net::{SocketAddr, IpAddr, Ipv6Addr};
 use std::path::{Path, PathBuf};
@@ -50,6 +51,8 @@ struct ConfigFile {
     daemon: Daemon,
     #[serde(default)]
     http: Http,
+    #[serde(default)]
+    crypto: Crypto,
 }
 
 impl ConfigFile {
@@ -77,6 +80,10 @@ impl ConfigFile {
 
         if let Some(v) = &args.path_format {
             self.http.path_format = Some(v.clone());
+        }
+
+        if let Some(v) = &args.pubkey {
+            self.crypto.pubkey = Some(v.clone());
         }
     }
 
@@ -133,6 +140,32 @@ impl ConfigFile {
             path_format,
         })
     }
+
+    pub fn build_encrypt_config(self) -> Result<EncryptConfig> {
+        let pubkey = self.crypto.pubkey
+            .ok_or_else(|| format_err!("public key is missing"))?;
+        let pubkey = base64::decode(&pubkey)
+            .context("Failed to base64 decode public key")?;
+        let pubkey = PublicKey::from_slice(&pubkey)
+            .ok_or_else(|| format_err!("Wrong length for public key"))?;
+
+        Ok(EncryptConfig {
+            pubkey,
+        })
+    }
+
+    pub fn build_decrypt_config(self) -> Result<DecryptConfig> {
+        let seckey = self.crypto.seckey
+            .ok_or_else(|| format_err!("secret key is missing"))?;
+        let seckey = base64::decode(&seckey)
+            .context("Failed to base64 decode secret key")?;
+        let seckey = SecretKey::from_slice(&seckey)
+            .ok_or_else(|| format_err!("Wrong length for secret key"))?;
+
+        Ok(DecryptConfig {
+            seckey,
+        })
+    }
 }
 
 #[inline(always)]
@@ -155,6 +188,12 @@ pub struct Http {
     bind_addr: Option<SocketAddr>,
     destination: Option<String>,
     path_format: Option<String>,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct Crypto {
+    pubkey: Option<String>,
+    seckey: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -194,5 +233,29 @@ impl UploadConfig {
     pub fn load(args: &Args) -> Result<UploadConfig> {
         ConfigFile::load(args)?
             .build_upload_config()
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EncryptConfig {
+    pub pubkey: PublicKey,
+}
+
+impl EncryptConfig {
+    pub fn load(args: &Args) -> Result<EncryptConfig> {
+        ConfigFile::load(args)?
+            .build_encrypt_config()
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DecryptConfig {
+    pub seckey: SecretKey,
+}
+
+impl DecryptConfig {
+    pub fn load(args: &Args) -> Result<DecryptConfig> {
+        ConfigFile::load(args)?
+            .build_decrypt_config()
     }
 }
