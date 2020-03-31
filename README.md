@@ -2,11 +2,11 @@
 
 ## Starting the receiver somewhere
 
-     brchd -Hd ./drop/ -B :1337
+     brchd -Hd drop/
 
 ## Run the background uploader
 
-    brchd -D
+    brchd -Dd http://127.0.0.1:7070
 
 ## Manage uploads
 

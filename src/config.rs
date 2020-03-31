@@ -41,7 +41,7 @@ fn build_socket_path(socket: Option<PathBuf>, search: bool) -> Result<PathBuf> {
             return Ok(path);
         }
 
-        bail!("Socket path not found")
+        bail!("Could not find brchd socket, is brchd -D running?")
     }
 }
 

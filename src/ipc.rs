@@ -50,7 +50,7 @@ impl IpcClient {
     pub fn connect(path: &Path) -> Result<IpcClient> {
         debug!("connecting to {:?}", path);
         let stream = UnixStream::connect(path)
-            .context("Failed to connect to brchd socket")?;
+            .context("Failed to connect to brchd socket, is brchd -D running?")?;
         let stream = BufStream::new(stream);
         Ok(IpcClient {
             stream,
