@@ -85,6 +85,10 @@ impl ConfigFile {
         if let Some(v) = &args.pubkey {
             self.crypto.pubkey = Some(v.clone());
         }
+
+        if let Some(v) = &args.seckey {
+            self.crypto.seckey = Some(v.clone());
+        }
     }
 
     pub fn load(args: &Args) -> Result<ConfigFile> {

@@ -10,6 +10,7 @@ pub struct Args {
     /// Verbose output
     #[structopt(short="v", parse(from_occurrences))]
     pub verbose: u8,
+    /// Perform the action on the given paths
     pub paths: Vec<String>,
     /// Run the uploader daemon
     #[structopt(short="D", long, group="action")]
@@ -43,14 +44,21 @@ pub struct Args {
     /// Block until all pending uploads are done
     #[structopt(short="w", long, group="action")]
     pub wait: bool,
+    /// Use the given path for the brchd socket
     #[structopt(short="S", long, env="BRCHD_SOCK")]
     pub socket: Option<PathBuf>,
+    /// Load the configuration at the given path
     #[structopt(short="c", long, env="BRCHD_CONFIG")]
     pub config: Option<PathBuf>,
+    /// Store uploads with the given pattern
     #[structopt(short="F", long, env="BRCHD_PATH_FORMAT")]
     pub path_format: Option<String>,
+    /// Encrypt for the given public key
     #[structopt(long, env="BRCHD_PUBKEY")]
     pub pubkey: Option<String>,
+    /// Decrypt with the given secret key
+    #[structopt(long, env="BRCHD_SECKEY")]
+    pub seckey: Option<String>,
 }
 
 fn parse_addr(s: &str) -> Result<SocketAddr> {
