@@ -16,21 +16,33 @@ The receiver is the http server that accepts uploads and stores them inside a fo
 brchd -Hd drop/
 ```
 
-It is recommended to use brchd to upload, but you can also upload files to the
-receiver with curl directly:
+It is recommended to use brchd to upload, but you can also open it in the
+browser to use the html form.
+
+There are multiple ways to use it with curl, the easiest being:
 
 ```
 curl -F file=@README.md http://127.1:7070
 ```
 
-Or open it in a browser to use the html form.
+To upload multiple files you can combine curl with tar:
+
+```
+tar cvvJ files/*.bin.part | curl -T- http://127.1:7070
+```
+
+To upload log files only readable by root:
+
+```
+sudo tar cvvJ /var/log/nginx | curl -T- http://127.1:7070
+```
 
 # DAEMON
 
 The daemon runs on the system that is uploading.
 
 ```
-brchd -Dd http://127.0.0.1:7070
+brchd -Dd http://127.1:7070
 ```
 
 It keeps track of the upload queue and restricts the number of concurrent

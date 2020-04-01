@@ -4,6 +4,7 @@ use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
 
 pub struct UploadContext {
+    pub destination: String,
     format: String,
     dt: DateTime<Utc>,
     remote: String,
@@ -13,8 +14,9 @@ pub struct UploadContext {
 }
 
 impl UploadContext {
-    pub fn new(format: String, remote: String, filename: String, path: String, full_path: Option<String>) -> UploadContext {
+    pub fn new(destination: String, format: String, remote: String, filename: String, path: String, full_path: Option<String>) -> UploadContext {
         UploadContext {
+            destination,
             format,
             dt: Utc::now(),
             remote,
@@ -81,6 +83,7 @@ mod tests {
 
     fn ctx(format: &str) -> UploadContext {
         UploadContext {
+            destination: "/tmp/".to_string(),
             format: format.to_string(),
             dt: "1996-12-19T16:39:57Z".parse::<DateTime<Utc>>().unwrap(),
             remote: "192.0.2.1".to_string(),

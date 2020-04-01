@@ -2,15 +2,17 @@ use actix_multipart::Multipart;
 use actix_multipart::Field;
 use actix_service::{Service, Transform};
 use actix_web::{dev::ServiceRequest, dev::ServiceResponse};
-use actix_web::{web, App, Error as ResponseError, HttpResponse, HttpServer};
+use actix_web::{web, App, error, Error as ResponseError, HttpResponse, HttpServer};
 use crate::args::Args;
 use crate::config::UploadConfig;
 use crate::errors::*;
 use crate::pathspec::UploadContext;
 use crate::temp;
-use futures::{Future, StreamExt};
+use futures::{Future, Stream, StreamExt};
 use futures::future::{ok, Ready};
 use humansize::{FileSize, file_size_opts};
+use rand::{thread_rng, Rng};
+use rand::distributions::Alphanumeric;
 use std::io::Write;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
@@ -62,11 +64,11 @@ pub struct UploadHandle {
     f: File,
 }
 
-fn open_upload_dest(dest: String, ctx: UploadContext) -> Result<UploadHandle> {
+fn open_upload_dest(ctx: UploadContext) -> Result<UploadHandle> {
     for _ in 0..MAX_DEST_OPEN_ATTEMPTS {
         let (path, deterministic) = ctx.generate()?;
 
-        let dest = Path::new(&dest);
+        let dest = Path::new(&ctx.destination);
         let dest_path = dest.join(path);
 
         let (parent, temp_path) = temp::partial_path(&dest_path)
@@ -97,19 +99,47 @@ fn open_upload_dest(dest: String, ctx: UploadContext) -> Result<UploadHandle> {
     bail!("Failed to find new filename to upload to")
 }
 
-async fn recv_all(mut field: Field, mut f: File) -> std::result::Result<usize, ResponseError> {
+async fn recv_all<S, E>(mut stream: S, mut f: File) -> std::result::Result<usize, ResponseError>
+where
+    S: Stream<Item=std::result::Result<web::Bytes, E>> + Unpin,
+    E: 'static + error::ResponseError,
+{
     let mut n = 0;
-    // Field in turn is stream of *Bytes* object
-    while let Some(chunk) = field.next().await {
+
+    while let Some(chunk) = stream.next().await {
         let data = chunk?;
         n += data.len();
         // filesystem operations are blocking, we have to use threadpool
         f = web::block(move || f.write_all(&data).map(|_| f)).await?;
     }
+
     Ok(n)
 }
 
-async fn save_file(req: web::HttpRequest, config: web::Data<Arc<UploadConfig>>, mut payload: Multipart) -> std::result::Result<HttpResponse, ResponseError> {
+async fn save<S, E>(stream: S, ctx: UploadContext, remote_sock: String) -> std::result::Result<(), ResponseError>
+where
+    S: Stream<Item=std::result::Result<web::Bytes, E>> + Unpin,
+    E: 'static + error::ResponseError,
+{
+    // filesystem operations are blocking, we have to use threadpool
+    let upload = web::block(|| open_upload_dest(ctx))
+        .await?;
+    info!("{} writing upload into {:?}", remote_sock, upload.temp_path);
+
+    let size = recv_all(stream, upload.f).await?;
+
+    let size = size.file_size(file_size_opts::CONVENTIONAL)
+        .map_err(|e| format_err!("{}", e))?;
+
+    info!("{} moving upload {:?} -> {:?} ({})", remote_sock, upload.temp_path, upload.dest_path, size);
+    fs::rename(upload.temp_path, upload.dest_path)
+        .context("Failed to move temp file to final destination")
+        .map_err(Error::from)?;
+
+    Ok(())
+}
+
+async fn post_file(req: web::HttpRequest, config: web::Data<Arc<UploadConfig>>, mut payload: Multipart) -> std::result::Result<HttpResponse, ResponseError> {
     let remote_addr = remote_addr(&req.peer_addr());
     let remote_sock = remote_sock(&req.peer_addr());
 
@@ -118,31 +148,39 @@ async fn save_file(req: web::HttpRequest, config: web::Data<Arc<UploadConfig>>, 
         let field = item?;
 
         if let Some((path, filename)) = filename(&field)? {
-            let ctx = UploadContext::new(
+            save(field, UploadContext::new(
+                config.destination.clone(),
                 config.path_format.clone(),
                 remote_addr.clone(),
                 filename,
                 path,
                 None,
-            );
-            let upload_dest = config.destination.clone();
-
-            // filesystem operations are blocking, we have to use threadpool
-            let upload = web::block(|| open_upload_dest(upload_dest, ctx))
-                .await?;
-            info!("{} writing upload into {:?}", remote_sock, upload.temp_path);
-
-            let size = recv_all(field, upload.f).await?;
-
-            let size = size.file_size(file_size_opts::CONVENTIONAL)
-                .map_err(|e| format_err!("{}", e))?;
-
-            info!("{} moving upload {:?} -> {:?} ({})", remote_sock, upload.temp_path, upload.dest_path, size);
-            fs::rename(upload.temp_path, upload.dest_path)
-                .context("Failed to move temp file to final destination")
-                .map_err(Error::from)?;
+            ), remote_sock.clone()).await?;
         }
     }
+
+    Ok(HttpResponse::Ok().body("done.\n"))
+}
+
+async fn put_file(req: web::HttpRequest, config: web::Data<Arc<UploadConfig>>, payload: web::Payload) -> std::result::Result<HttpResponse, ResponseError> {
+    let remote_addr = remote_addr(&req.peer_addr());
+    let remote_sock = remote_sock(&req.peer_addr());
+
+    let mut filename = thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(16)
+        .collect::<String>();
+    filename.push_str(".bin");
+
+    save(payload, UploadContext::new(
+        config.destination.clone(),
+        config.path_format.clone(),
+        remote_addr,
+        filename.clone(),
+        filename,
+        None,
+    ), remote_sock).await?;
+
     Ok(HttpResponse::Ok().body("done.\n"))
 }
 
@@ -292,9 +330,10 @@ pub async fn run(args: Args) -> Result<()> {
             App::new()
                 .data(app_data.clone())
                 .wrap(Logger)
-                .service(web::resource("/")
+                .service(web::resource("/*")
                     .route(web::get().to(index))
-                    .route(web::post().to(save_file)),
+                    .route(web::post().to(post_file))
+                    .route(web::put().to(put_file))
             )
         })
         .bind(config.bind_addr)?
