@@ -15,7 +15,7 @@ const MAGIC_SIZE: usize = 8;
 pub const HEADER_INTRO_LEN: usize = MAGIC_SIZE + NONCEBYTES + PUBLICKEYBYTES + 2;
 
 const PADDING_SIZE: usize = 48;
-const PADDING_BASELINE: usize = 98;
+const PADDING_BASELINE: usize = 59;
 
 type Intro = (Nonce, PublicKey, u16);
 pub type RawHeader = (Nonce, PublicKey, Vec<u8>);
@@ -28,8 +28,6 @@ base64_serde_type!(Base64Standard, STANDARD);
 pub struct Header {
     #[serde(rename="k", with="Base64Standard")]
     pub key: Vec<u8>,
-    #[serde(rename="h", with="Base64Standard")]
-    pub next_header: Vec<u8>,
     #[serde(rename="n", skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
 }
@@ -56,13 +54,11 @@ impl Header {
         Ok(out)
     }
 
-    pub fn open_stream_pull(&self) -> Result<Stream<Pull>> {
-        let next_header = secretstream::Header::from_slice(&self.next_header)
-            .ok_or_else(|| format_err!("Invalid secretstream header"))?;
+    pub fn open_stream_pull(&self, header: &secretstream::Header) -> Result<Stream<Pull>> {
         let key = Key::from_slice(&self.key)
             .ok_or_else(|| format_err!("Invalid secretstream key"))?;
 
-        Stream::init_pull(&next_header, &key)
+        Stream::init_pull(header, &key)
             .map_err(|_| format_err!("Failed to open file decryption stream"))
     }
 
@@ -129,7 +125,7 @@ fn pubkey(input: &[u8]) -> IResult<&[u8], PublicKey> {
 
 #[cfg(test)]
 mod tests {
-    use sodiumoxide::crypto::secretstream::{gen_key, Stream};
+    use sodiumoxide::crypto::secretstream::gen_key;
     use super::*;
 
     fn sec() -> SecretKey {
@@ -144,7 +140,6 @@ mod tests {
         let sk = sec();
         let h1 = Header {
             key: vec![1,2,3,4],
-            next_header: vec![5,6,7,8],
             name: Some("ohai.txt".to_string()),
         };
         let header = h1.encrypt(&sk.public_key()).expect("encrypt");
@@ -157,17 +152,14 @@ mod tests {
     fn const_len_filename_varies() {
         let sk = sec();
         let key = gen_key();
-        let (_, header) = Stream::init_push(&key).unwrap();
 
         let h1 = Header {
             key: key.0.to_vec(),
-            next_header: header.0.to_vec(),
             name: Some("ohai.txt".to_string()),
         }.encrypt(&sk.public_key()).expect("encrypt");
 
         let h2 = Header {
             key: key.0.to_vec(),
-            next_header: header.0.to_vec(),
             name: Some("this/file/is/slightly/longer.txt".to_string()),
         }.encrypt(&sk.public_key()).expect("encrypt");
 
@@ -178,27 +170,24 @@ mod tests {
     fn shortest_padded_header() {
         let sk = sec();
         let key = gen_key();
-        let (_, header) = Stream::init_push(&key).unwrap();
 
         let h = Header {
             key: key.0.to_vec(),
-            next_header: header.0.to_vec(),
             name: None,
         }.encrypt(&sk.public_key()).expect("encrypt");
 
-        assert_eq!(h.len(), 173);
+        assert_eq!(h.len(), 134);
     }
 
     #[test]
     fn padding_baseline_is_correct() {
         let key = gen_key();
-        let (_, header) = Stream::init_push(&key).unwrap();
 
         let h = Header {
             key: key.0.to_vec(),
-            next_header: header.0.to_vec(),
             name: Some(String::new()),
         };
+
         let buf = serde_json::to_vec(&h).unwrap();
         assert_eq!(buf.len(), PADDING_BASELINE);
     }
