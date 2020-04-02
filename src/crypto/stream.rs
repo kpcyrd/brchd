@@ -13,12 +13,20 @@ pub struct CryptoReader<T> {
 }
 
 impl<T: Read> CryptoReader<T> {
-    pub fn init(mut r: T, sk: &SecretKey) -> Result<Option<CryptoReader<T>>> {
+    pub fn init(mut r: T, seckey: &SecretKey, pubkey: Option<&PublicKey>) -> Result<Option<CryptoReader<T>>> {
         let (nonce, pk, header) = match CryptoReader::read_header(&mut r) {
             Ok(h) => h,
             Err(_) => return Ok(None),
         };
-        let header = header::decrypt(&nonce, &pk, &header, sk)?;
+
+        // in strict mode, ensure the pubkey is the one we expect
+        if let Some(pubkey) = pubkey {
+            if *pubkey != pk {
+                bail!("Header is signed by untrusted publickey");
+            }
+        }
+
+        let header = header::decrypt(&nonce, &pk, &header, seckey)?;
 
         let next_header = CryptoReader::read_next_header(&mut r)?;
         let stream = header.open_stream_pull(&next_header)?;
@@ -83,14 +91,14 @@ pub struct CryptoWriter<T> {
 }
 
 impl<T: Write> CryptoWriter<T> {
-    pub fn init(mut w: T, pubkey: &PublicKey) -> Result<CryptoWriter<T>> {
+    pub fn init(mut w: T, pubkey: &PublicKey, seckey: Option<&SecretKey>) -> Result<CryptoWriter<T>> {
         let key = secretstream::gen_key();
 
         let header = header::Header {
             key: key.0.to_vec(),
             name: None,
         };
-        let header = header.encrypt(pubkey)?;
+        let header = header.encrypt(pubkey, seckey)?;
         w.write_all(&header)?;
 
         let (stream, header) = Stream::init_push(&key).unwrap();
@@ -121,6 +129,7 @@ impl<T: Write> CryptoWriter<T> {
 
 #[cfg(test)]
 mod tests {
+    use sodiumoxide::crypto::box_;
     use super::*;
 
     fn sec() -> SecretKey {
@@ -155,11 +164,11 @@ mod tests {
         let pk = sk.public_key();
 
         let mut file = Vec::new();
-        let mut w = CryptoWriter::init(&mut file, &pk).unwrap();
+        let mut w = CryptoWriter::init(&mut file, &pk, None).unwrap();
         w.push(b"ohai!\n", true).unwrap();
 
         let mut cur = std::io::Cursor::new(&file);
-        let mut r = CryptoReader::init(&mut cur, &sk).unwrap().unwrap();
+        let mut r = CryptoReader::init(&mut cur, &sk, None).unwrap().unwrap();
         assert!(r.is_not_finalized());
 
         let mut buf = Vec::new();
@@ -174,7 +183,7 @@ mod tests {
         let sk = sec();
 
         let mut cur = std::io::Cursor::new(FILE);
-        let mut r = CryptoReader::init(&mut cur, &sk).unwrap().unwrap();
+        let mut r = CryptoReader::init(&mut cur, &sk, None).unwrap().unwrap();
         assert!(r.is_not_finalized());
 
         let mut buf = Vec::new();
@@ -192,7 +201,7 @@ mod tests {
         buf.push(123);
 
         let mut cur = std::io::Cursor::new(&buf);
-        let mut r = CryptoReader::init(&mut cur, &sk).unwrap().unwrap();
+        let mut r = CryptoReader::init(&mut cur, &sk, None).unwrap().unwrap();
         assert!(r.is_not_finalized());
 
         let mut buf = Vec::new();
@@ -204,7 +213,7 @@ mod tests {
     fn empty_file() {
         let sk = sec();
         let mut cur = std::io::Cursor::new(&[]);
-        let r = CryptoReader::init(&mut cur, &sk).unwrap();
+        let r = CryptoReader::init(&mut cur, &sk, None).unwrap();
         assert!(r.is_none());
     }
 
@@ -212,7 +221,7 @@ mod tests {
     fn missing_header_body() {
         let sk = sec();
         let mut cur = std::io::Cursor::new(&FILE[..header::HEADER_INTRO_LEN]);
-        let r = CryptoReader::init(&mut cur, &sk).unwrap();
+        let r = CryptoReader::init(&mut cur, &sk, None).unwrap();
         assert!(r.is_none());
     }
 
@@ -223,7 +232,7 @@ mod tests {
         let intro = header::parse_intro(&FILE[..header::HEADER_INTRO_LEN]).unwrap();
         let len = header::HEADER_INTRO_LEN + intro.2 as usize;
         let mut cur = std::io::Cursor::new(&FILE[..len]);
-        let r = CryptoReader::init(&mut cur, &sk);
+        let r = CryptoReader::init(&mut cur, &sk, None);
         assert!(r.is_err());
     }
 
@@ -234,10 +243,52 @@ mod tests {
         let intro = header::parse_intro(&FILE[..header::HEADER_INTRO_LEN]).unwrap();
         let len = header::HEADER_INTRO_LEN + intro.2 as usize + secretstream::HEADERBYTES;
         let mut cur = std::io::Cursor::new(&FILE[..len]);
-        let mut r = CryptoReader::init(&mut cur, &sk).unwrap().unwrap();
+        let mut r = CryptoReader::init(&mut cur, &sk, None).unwrap().unwrap();
 
         let mut buf = Vec::new();
         let r = r.pull(&mut buf);
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn authenticated_crypto_roundtrip() {
+        let (our_pk, our_sk) = box_::gen_keypair();
+        let (their_pk, their_sk) = box_::gen_keypair();
+
+        let mut file = Vec::new();
+        let mut w = CryptoWriter::init(&mut file, &their_pk, Some(&our_sk)).unwrap();
+        w.push(b"ohai!\n", true).unwrap();
+
+        let mut cur = std::io::Cursor::new(&file);
+        let mut r = CryptoReader::init(&mut cur, &their_sk, Some(&our_pk)).unwrap().unwrap();
+        assert!(r.is_not_finalized());
+
+        let mut buf = Vec::new();
+        r.pull(&mut buf).unwrap();
+        assert!(!r.is_not_finalized());
+
+        assert_eq!(&buf, b"ohai!\n");
+    }
+
+    #[test]
+    fn authenticated_crypto_encrypt() {
+        let (our_pk, our_sk) = box_::gen_keypair();
+        let (their_pk, _their_sk) = box_::gen_keypair();
+
+        let mut file = Vec::new();
+        let mut w = CryptoWriter::init(&mut file, &their_pk, Some(&our_sk)).unwrap();
+        w.push(b"ohai!\n", true).unwrap();
+
+        assert_eq!(&file[32..64], &our_pk.0)
+    }
+
+    #[test]
+    fn authenticated_crypto_decrypt_strict_key() {
+        let sk = sec();
+        let (pk, _) = box_::gen_keypair();
+
+        let mut cur = std::io::Cursor::new(FILE);
+        let r = CryptoReader::init(&mut cur, &sk, Some(&pk));
         assert!(r.is_err());
     }
 }

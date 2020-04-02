@@ -59,7 +59,7 @@ pub fn run_encrypt(args: Args) -> Result<()> {
             .create_new(true)
             .open(&temp_path)?;
 
-        let mut w = CryptoWriter::init(w, &config.pubkey)?;
+        let mut w = CryptoWriter::init(w, &config.pubkey, config.seckey.as_ref())?;
 
         let mut size = 0;
         let mut buf = [0u8; stream::CHUNK_SIZE];
@@ -89,7 +89,7 @@ pub fn run_decrypt(args: Args) -> Result<()> {
     walk(&args.paths, |path| {
         debug!("peeking into {:?}", path);
         let file = File::open(path)?;
-        if let Some(mut r) = CryptoReader::init(file, &config.seckey)? {
+        if let Some(mut r) = CryptoReader::init(file, &config.seckey, config.pubkey.as_ref())? {
             info!("decrypting {:?}", path);
 
             let (_, temp_path) = temp::partial_path(&path)

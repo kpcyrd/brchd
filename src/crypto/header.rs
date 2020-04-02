@@ -8,6 +8,7 @@ use nom::{
 use serde::{Serialize, Deserialize};
 use sodiumoxide::crypto::box_::{self, Nonce, PublicKey, SecretKey, NONCEBYTES, PUBLICKEYBYTES};
 use sodiumoxide::crypto::secretstream::{self, Key, Stream, Pull};
+use std::borrow::Cow;
 use std::convert::TryFrom;
 
 const MAGIC: &[u8] = b"\x00#BRCHD\x00";
@@ -33,12 +34,17 @@ pub struct Header {
 }
 
 impl Header {
-    pub fn encrypt(&self, pubkey: &PublicKey) -> Result<Vec<u8>> {
+    pub fn encrypt(&self, pubkey: &PublicKey, seckey: Option<&SecretKey>) -> Result<Vec<u8>> {
         let mut header = serde_json::to_vec(self)?;
         self.pad_header(&mut header);
 
         let nonce = box_::gen_nonce();
-        let (pk, sk) = box_::gen_keypair();
+        let (pk, sk) = if let Some(seckey) = seckey {
+            (seckey.public_key(), Cow::Borrowed(seckey))
+        } else {
+            let (pk, sk) = box_::gen_keypair();
+            (pk, Cow::Owned(sk))
+        };
 
         let header = box_::seal(&header, &nonce, pubkey, &sk);
 
@@ -142,7 +148,7 @@ mod tests {
             key: vec![1,2,3,4],
             name: Some("ohai.txt".to_string()),
         };
-        let header = h1.encrypt(&sk.public_key()).expect("encrypt");
+        let header = h1.encrypt(&sk.public_key(), None).expect("encrypt");
         println!("header: {:?}", header);
         let h2 = decrypt_slice(&header, &sk).expect("decrypt");
         assert_eq!(h1, h2);
@@ -156,12 +162,12 @@ mod tests {
         let h1 = Header {
             key: key.0.to_vec(),
             name: Some("ohai.txt".to_string()),
-        }.encrypt(&sk.public_key()).expect("encrypt");
+        }.encrypt(&sk.public_key(), None).expect("encrypt");
 
         let h2 = Header {
             key: key.0.to_vec(),
             name: Some("this/file/is/slightly/longer.txt".to_string()),
-        }.encrypt(&sk.public_key()).expect("encrypt");
+        }.encrypt(&sk.public_key(), None).expect("encrypt");
 
         assert_eq!(h1.len(), h2.len());
     }
@@ -174,7 +180,7 @@ mod tests {
         let h = Header {
             key: key.0.to_vec(),
             name: None,
-        }.encrypt(&sk.public_key()).expect("encrypt");
+        }.encrypt(&sk.public_key(), None).expect("encrypt");
 
         assert_eq!(h.len(), 134);
     }
@@ -190,5 +196,19 @@ mod tests {
 
         let buf = serde_json::to_vec(&h).unwrap();
         assert_eq!(buf.len(), PADDING_BASELINE);
+    }
+
+    #[test]
+    fn encrypt_with_specified_key() {
+        let sk = sec();
+        let (pk, _) = box_::gen_keypair();
+
+        let h1 = Header {
+            key: vec![1,2,3,4],
+            name: Some("ohai.txt".to_string()),
+        };
+        let header = h1.encrypt(&pk, Some(&sk)).expect("encrypt");
+
+        assert_eq!(&header[32..64], sk.public_key().0);
     }
 }
