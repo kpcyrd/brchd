@@ -70,6 +70,7 @@ impl ConfigFile {
 
         if let Some(v) = &args.pubkey {
             self.crypto.pubkey = Some(v.clone());
+            self.daemon.pubkey = Some(v.clone());
         }
 
         if let Some(v) = &args.seckey {
@@ -96,6 +97,7 @@ pub struct Daemon {
     pub socket: Option<PathBuf>,
     pub destination: Option<String>,
     pub concurrency: Option<usize>,
+    pub pubkey: Option<String>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -114,6 +116,7 @@ pub struct Crypto {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Destination {
     pub destination: String,
+    pub pubkey: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -1,5 +1,5 @@
 use crate::args::Args;
-use sodiumoxide::crypto::box_;
+use sodiumoxide::crypto::box_::{self, PublicKey, SecretKey};
 use crate::config::{EncryptConfig, DecryptConfig};
 use crate::crypto::stream::{CryptoReader, CryptoWriter};
 use crate::errors::*;
@@ -12,6 +12,20 @@ use walkdir::WalkDir;
 
 pub mod header;
 pub mod stream;
+
+pub fn decode_pubkey(pubkey: &str) -> Result<PublicKey> {
+    let pubkey = base64::decode(pubkey)
+        .context("Failed to base64 decode public key")?;
+    PublicKey::from_slice(&pubkey)
+        .ok_or_else(|| format_err!("Wrong length for public key"))
+}
+
+pub fn decode_seckey(seckey: &str) -> Result<SecretKey> {
+    let seckey = base64::decode(seckey)
+        .context("Failed to base64 decode secret key")?;
+    SecretKey::from_slice(&seckey)
+        .ok_or_else(|| format_err!("Wrong length for secret key"))
+}
 
 fn walk<F>(paths: &[String], f: F) -> Result<()>
 where

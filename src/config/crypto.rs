@@ -1,5 +1,6 @@
 use crate::args::Args;
 use crate::config::{self, ConfigFile};
+use crate::crypto;
 use crate::errors::*;
 use serde::{Serialize, Deserialize};
 use sodiumoxide::crypto::box_::{PublicKey, SecretKey};
@@ -25,10 +26,7 @@ impl EncryptConfig {
             &pubkey
         };
 
-        let pubkey = base64::decode(&pubkey)
-            .context("Failed to base64 decode public key")?;
-        let pubkey = PublicKey::from_slice(&pubkey)
-            .ok_or_else(|| format_err!("Wrong length for public key"))?;
+        let pubkey = crypto::decode_pubkey(&pubkey)?;
 
         Ok(EncryptConfig {
             pubkey,
@@ -50,10 +48,8 @@ impl DecryptConfig {
     fn build(config: ConfigFile, _args: &Args) -> Result<DecryptConfig> {
         let seckey = config.crypto.seckey
             .ok_or_else(|| format_err!("secret key is missing"))?;
-        let seckey = base64::decode(&seckey)
-            .context("Failed to base64 decode secret key")?;
-        let seckey = SecretKey::from_slice(&seckey)
-            .ok_or_else(|| format_err!("Wrong length for secret key"))?;
+
+        let seckey = crypto::decode_seckey(&seckey)?;
 
         Ok(DecryptConfig {
             seckey,
