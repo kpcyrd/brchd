@@ -1,4 +1,5 @@
 use crate::errors::*;
+use std::collections::HashMap;
 use std::net::{SocketAddr, IpAddr, Ipv6Addr};
 use std::path::PathBuf;
 
@@ -42,4 +43,14 @@ fn default_port() -> SocketAddr {
         IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)),
         7070,
     )
+}
+
+fn resolve_alias<'a, T>(aliases: &'a HashMap<String, T>, alias: &str) -> Result<Option<&'a T>> {
+    if alias.starts_with('@') {
+        let value = aliases.get(&alias[1..])
+            .ok_or_else(|| format_err!("Failed to resolve alias"))?;
+        Ok(Some(value))
+    } else {
+        Ok(None)
+    }
 }

@@ -2,7 +2,6 @@ use crate::args::Args;
 use crate::config::{self, ConfigFile};
 use crate::errors::*;
 use serde::{Serialize, Deserialize};
-// use std::collections::HashMap;
 use std::net::SocketAddr;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -15,10 +14,10 @@ pub struct UploadConfig {
 impl UploadConfig {
     pub fn load(args: &Args) -> Result<UploadConfig> {
         let config = ConfigFile::load(args)?;
-        Self::build(config)
+        Self::build(config, args)
     }
 
-    fn build(config: ConfigFile) -> Result<UploadConfig> {
+    fn build(config: ConfigFile, _args: &Args) -> Result<UploadConfig> {
         let destination = config.http.destination
             .ok_or_else(|| format_err!("destination is required"))?;
 
@@ -46,7 +45,7 @@ mod tests {
 [http]
 destination = "/drop"
 "#).unwrap();
-        let config = UploadConfig::build(config).unwrap();
+        let config = UploadConfig::build(config, &Args::default()).unwrap();
         assert_eq!(config, UploadConfig {
             bind_addr: "[::]:7070".parse().unwrap(),
             destination: "/drop".to_string(),

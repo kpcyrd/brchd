@@ -12,10 +12,10 @@ pub struct ClientConfig {
 impl ClientConfig {
     pub fn load(args: &Args) -> Result<ClientConfig> {
         let config = ConfigFile::load(args)?;
-        Self::build(config)
+        Self::build(config, args)
     }
 
-    fn build(config: ConfigFile) -> Result<ClientConfig> {
+    fn build(config: ConfigFile, _args: &Args) -> Result<ClientConfig> {
         let socket = config::build_socket_path(config.daemon.socket, true)?;
 
         Ok(ClientConfig {
@@ -34,7 +34,7 @@ mod tests {
 [daemon]
 socket = "/asdf/brchd.socket"
 "#).unwrap();
-        let config = ClientConfig::build(config).unwrap();
+        let config = ClientConfig::build(config, &Args::default()).unwrap();
         assert_eq!(config, ClientConfig {
             socket: PathBuf::from("/asdf/brchd.socket"),
         });

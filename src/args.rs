@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 use structopt::clap::{AppSettings, Shell};
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Default, StructOpt)]
 #[structopt(global_settings = &[AppSettings::ColoredHelp])]
 pub struct Args {
     /// Verbose output

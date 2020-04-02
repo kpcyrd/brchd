@@ -1,7 +1,7 @@
 use crate::args::Args;
 use crate::errors::*;
 use serde::{Serialize, Deserialize};
-// use std::collections::HashMap;
+use std::collections::HashMap;
 use std::fs;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
@@ -30,16 +30,14 @@ pub struct ConfigFile {
     pub http: Http,
     #[serde(default)]
     pub crypto: Crypto,
-    /*
     #[serde(default)]
-    pub destinations: HashMap<String, ()>,
+    pub destinations: HashMap<String, Destination>,
     #[serde(default)]
-    pub keypairs: HashMap<String, ()>,
-    */
+    pub pubkeys: HashMap<String, Pubkey>,
 }
 
 impl ConfigFile {
-    pub fn load_from<P: AsRef<Path>>(path: P) -> Result<ConfigFile> {
+    fn load_from<P: AsRef<Path>>(path: P) -> Result<ConfigFile> {
         let buf = fs::read(path)
             .context("Failed to read config file")?;
         ConfigFile::load_slice(&buf)
@@ -111,4 +109,14 @@ pub struct Http {
 pub struct Crypto {
     pub pubkey: Option<String>,
     pub seckey: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Destination {
+    pub destination: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Pubkey {
+    pub pubkey: String,
 }
