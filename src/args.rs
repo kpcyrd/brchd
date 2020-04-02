@@ -18,6 +18,9 @@ pub struct Args {
     /// Run the http uploads receiver
     #[structopt(short="H", long, group="action")]
     pub http_daemon: bool,
+    /// Show upload queue
+    #[structopt(short="Q", long, group="action")]
+    pub queue: bool,
 
     /// Encrypt files
     #[structopt(long, group="action")]

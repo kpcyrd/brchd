@@ -45,6 +45,12 @@ fn run() -> Result<()> {
         crypto::run_decrypt(args)?;
     } else if args.keygen {
         crypto::run_keygen(args)?;
+    } else if args.queue {
+        let config = ClientConfig::load(&args)?;
+        let mut client = IpcClient::connect(&config.socket)?;
+        for task in client.fetch_queue()? {
+            println!("{:?}", task);
+        }
     } else if args.wait {
         let config = ClientConfig::load(&args)?;
         let mut client = IpcClient::connect(&config.socket)?;

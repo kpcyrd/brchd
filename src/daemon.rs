@@ -18,6 +18,7 @@ pub enum Command {
     Subscribe(channel::Sender<IpcMessage>),
     PopQueue(channel::Sender<Task>),
     PushQueue(Task),
+    FetchQueue(channel::Sender<Vec<Task>>),
     ProgressUpdate(ProgressUpdate),
 }
 
@@ -102,6 +103,13 @@ impl Server {
         self.update_stats();
     }
 
+    fn fetch_queue(&mut self, worker: channel::Sender<Vec<Task>>) {
+        let queue = self.queue.iter()
+            .map(|t| t.clone())
+            .collect();
+        worker.send(queue).expect("worker thread died");
+    }
+
     fn run(&mut self) {
         loop {
             select! {
@@ -111,6 +119,7 @@ impl Server {
                         Ok(Command::Subscribe(tx)) => self.add_subscriber(tx),
                         Ok(Command::PopQueue(tx)) => self.pop_queue(tx),
                         Ok(Command::PushQueue(task)) => self.push_work(task),
+                        Ok(Command::FetchQueue(tx)) => self.fetch_queue(tx),
                         Ok(Command::ProgressUpdate(update)) => self.update_progress(update),
                         Err(_) => break,
                     }
@@ -168,9 +177,20 @@ impl Client {
             match msg {
                 IpcMessage::Ping => bail!("Unexpected ipc message"),
                 IpcMessage::Subscribe => self.subscribe_loop()?,
-                IpcMessage::StatusReq => todo!("status request"),
                 IpcMessage::StatusResp(_) => bail!("Unexpected ipc message"),
-                IpcMessage::Queue(task) => {
+
+                IpcMessage::QueueReq => {
+                    let (tx, rx) = channel::unbounded();
+                    self.write_server(Command::FetchQueue(tx));
+                    let queue = rx.recv().unwrap();
+                    let msg = IpcMessage::QueueResp(queue);
+                    if self.write_line(&msg).is_err() {
+                        break;
+                    }
+                },
+                IpcMessage::QueueResp(_) => bail!("Unexpected ipc message"),
+
+                IpcMessage::PushQueue(task) => {
                     self.write_server(Command::PushQueue(task));
                 },
             }
