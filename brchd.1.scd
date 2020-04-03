@@ -42,7 +42,7 @@ sudo tar cvvJ /var/log/nginx | curl -T- http://127.1:7070
 The daemon runs on the system that is uploading.
 
 ```
-brchd -Dd http://127.1:7070
+brchd -vDd http://127.1:7070
 ```
 
 It keeps track of the upload queue and restricts the number of concurrent
@@ -104,20 +104,41 @@ destination = "/home/user/drop"
 Usually you wouldn't configure both sections on the same system, but it works
 for demoing purpose.
 
+It's possible to configure multiple known destinations and then refer to them
+by name. To do this you would add a named destination to your config:
+
+```
+[daemon]
+destination = "@home"
+
+[destinations.home]
+destination = "http://127.0.0.1:7070"
+```
+
+You can also refer to named destinations with commandline options:
+
+```
+brchd -Dd @home
+```
+
 # ENCRYPTION
 
 brchd supports encrypting files with asymetric encryption to hide the file
 content from the server you're uploading to.
 
 The header starts with the magic bytes *\\x00#BRCHD\\x00*, a 24 byte nonce, a
-32 byte disposable public key, and a u16 that indicates the length of the
-header body. The header body is encrypted with
-*crypto_box_curve25519xsalsa20poly1305* and contains the symetric encryption
-key for the file and an optional filename.
+32 byte public key, and a u16 that indicates the length of the header body. The
+header body is encrypted with *crypto_box_curve25519xsalsa20poly1305* and
+contains the symetric encryption key for the file and an optional filename.
 
-This header is then followed by 24 header bytes and 4096 byte chunks that are
-encrypted with *crypto_secretstream_xchacha20poly1305*. When decrypting you
-need to read in 4096+17 byte chunks due to the authenticator.
+If no secret key is configured the public key in the header is randomly
+generated for every upload. If a secret key is configured then this key is used
+to authenticate the upload by signing the header.
+
+This header is then followed by a 24 byte libsodium secretstream header and
+4096 byte chunks that are encrypted with
+*crypto_secretstream_xchacha20poly1305*. When decrypting you need to read in
+4096+17 byte chunks due to the authenticator.
 
 To get started you first need to generate a keypair:
 
@@ -128,19 +149,17 @@ $ brchd --keygen
 seckey = "5LYdSbVM3Pxnvzi71bZedjNXgnu0ZIjEObJeTqa3UAU="
 ```
 
-Encrypting on-the-fly is not available yet. You can encrypt individual files or
-folders with:
+If you provide a public key to the upload daemon then all uploads are going to
+be encrypted for this public key:
+
+```
+brchd -Dd http://127.0.0.1:7070 --pubkey cxvWJ2JmG+hcVAyLFJIsofNwD7AsxioWw+7hxDBbejs=
+```
+
+You can also encrypt individual files or folders with:
 
 ```
 brchd --encrypt --pubkey $PUBKEY file.txt
-```
-
-The *--pubkey* flag is not required if you declare your public key in your
-config file:
-
-```
-[crypto]
-pubkey = "your key here"
 ```
 
 To decrypt everything in your upload folder, run:
@@ -151,6 +170,31 @@ brchd --decrypt drop/
 
 It is *highly recommended* to configure the secret key in the config file or as
 an environment variable for security reasons.
+
+It is possible to add known public keys in your config file and then refer to
+them by name. Given a configuration file like this:
+
+```
+[pubkeys.kpcyrd]
+pubkey = "cxvWJ2JmG+hcVAyLFJIsofNwD7AsxioWw+7hxDBbejs="
+```
+
+You can encrypt files for this key by running:
+
+```
+brchd --encrypt --pubkey @kpcyrd file.txt
+```
+
+You can also configure an encryption key for a destination:
+
+```
+[daemon]
+destination = "http://127.0.0.1:7070"
+pubkey = "cxvWJ2JmG+hcVAyLFJIsofNwD7AsxioWw+7hxDBbejs="
+```
+
+Instead of specifying the key directly you can also use an @ alias instead,
+this also works with named destionations described in the previous section.
 
 # PATHSPEC
 
