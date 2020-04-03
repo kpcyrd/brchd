@@ -110,6 +110,16 @@ impl<T: Write> CryptoWriter<T> {
         })
     }
 
+    #[inline]
+    pub fn inner(&self) -> &T {
+        &self.w
+    }
+
+    #[inline]
+    pub fn inner_mut(&mut self) -> &mut T {
+        &mut self.w
+    }
+
     pub fn push(&mut self, buf: &[u8], is_final: bool) -> Result<()> {
         let tag = if !is_final {
             Tag::Message
@@ -248,6 +258,16 @@ mod tests {
         let mut buf = Vec::new();
         let r = r.pull(&mut buf);
         assert!(r.is_err());
+    }
+
+    #[test]
+    fn init_only_writes_header() {
+        let sk = sec();
+        let pk = sk.public_key();
+
+        let mut file = Vec::new();
+        let _w = CryptoWriter::init(&mut file, &pk, None).unwrap();
+        assert_eq!(file.len(), 158);
     }
 
     #[test]

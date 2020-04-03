@@ -26,7 +26,7 @@ impl Status {
     pub fn update(&mut self, update: ProgressUpdate) {
         match update {
             ProgressUpdate::UploadStart(start) => {
-                self.progress.insert(start.key, Progress {
+                self.progress.insert(start.id, Progress {
                     label: start.label,
                     bytes_read: 0,
                     total: start.total,
@@ -34,13 +34,13 @@ impl Status {
                 });
             },
             ProgressUpdate::UploadProgress(progress) => {
-                let p = self.progress.get_mut(&progress.key)
-                    .unwrap_or_else(|| panic!("progress bar not found: {:?}", progress.key));
+                let p = self.progress.get_mut(&progress.id)
+                    .unwrap_or_else(|| panic!("progress bar not found: {:?}", progress.id));
                 p.bytes_read = progress.bytes_read;
                 p.speed = progress.speed;
             },
             ProgressUpdate::UploadEnd(end) => {
-                self.progress.remove(&end.key);
+                self.progress.remove(&end.id);
             },
         }
     }
@@ -68,21 +68,21 @@ pub enum ProgressUpdate {
 
 #[derive(Debug)]
 pub struct UploadStart {
-    pub key: String,
+    pub id: String,
     pub label: String,
     pub total: u64,
 }
 
 #[derive(Debug)]
 pub struct UploadProgress {
-    pub key: String,
+    pub id: String,
     pub bytes_read: u64,
     pub speed: u64,
 }
 
 #[derive(Debug)]
 pub struct UploadEnd {
-    pub key: String,
+    pub id: String,
 }
 
 pub struct StatusWriter {

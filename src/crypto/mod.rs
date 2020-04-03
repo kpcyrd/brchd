@@ -12,6 +12,7 @@ use walkdir::WalkDir;
 
 pub mod header;
 pub mod stream;
+pub mod upload;
 
 pub fn decode_pubkey(pubkey: &str) -> Result<PublicKey> {
     let pubkey = base64::decode(pubkey)

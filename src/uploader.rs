@@ -1,3 +1,4 @@
+use crate::crypto::upload::EncryptedUpload;
 use crate::daemon::Command;
 use crate::errors::*;
 use crate::queue::{Target, PathTarget};
@@ -6,6 +7,7 @@ use crossbeam_channel::{self as channel};
 use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
 use reqwest::blocking::{Client, multipart};
+use sodiumoxide::crypto::box_::{PublicKey, SecretKey};
 use std::fs::{self, File};
 use std::io;
 use std::io::prelude::*;
@@ -14,23 +16,37 @@ use std::time::{Instant, Duration};
 
 const UPDATE_NOTIFY_RATELIMIT: Duration = Duration::from_millis(250);
 
+pub struct CryptoConfig {
+    pubkey: PublicKey,
+    seckey: Option<SecretKey>,
+}
+
 pub struct Worker {
     client: Client,
     destination: String,
     tx: channel::Sender<Command>,
+    crypto: Option<CryptoConfig>,
 }
 
 impl Worker {
-    pub fn new(destination: String, tx: channel::Sender<Command>) -> Result<Worker> {
+    pub fn new(tx: channel::Sender<Command>, destination: String, pubkey: Option<PublicKey>, seckey: Option<SecretKey>) -> Result<Worker> {
         let client = Client::builder()
             .connect_timeout(Duration::from_secs(5))
             .timeout(None)
             .build()?;
 
+        let crypto = pubkey.map(|pubkey| {
+            CryptoConfig {
+                pubkey,
+                seckey,
+            }
+        });
+
         Ok(Worker {
             client,
             destination,
             tx,
+            crypto,
         })
     }
 
@@ -73,22 +89,31 @@ impl Worker {
         let metadata = fs::metadata(&resolved)?;
         let total = metadata.len();
 
-        let (upload, key) = Upload::new(self.tx.clone(), file);
+        // TODO: instead of boxing, we could refactor this into generics (benchmark this)
+        let (file, total) = if let Some(crypto) = &self.crypto {
+            let file = EncryptedUpload::new(file, &crypto.pubkey, crypto.seckey.as_ref())?;
+            let total = file.total_with_overhead(total);
+            (Box::new(file) as Box<dyn Read + Send>, total)
+        } else {
+            (Box::new(file) as Box<dyn Read + Send>, total)
+        };
 
+        let (upload, id) = Upload::new(self.tx.clone(), file);
         notify(&self.tx, ProgressUpdate::UploadStart(UploadStart {
-            key: key.clone(),
+            id: id.clone(),
             label,
             total,
         }));
+
         let result = self.upload_file(upload, path, total);
         notify(&self.tx, ProgressUpdate::UploadEnd(UploadEnd {
-            key,
+            id,
         }));
 
         result
     }
 
-    fn upload_file(&self, upload: Upload<File>, path: String, total: u64) -> Result<()> {
+    fn upload_file(&self, upload: Upload, path: String, total: u64) -> Result<()> {
         let file = multipart::Part::reader_with_length(upload, total)
             .file_name(path)
             .mime_str("application/octet-stream")?;
@@ -117,27 +142,27 @@ fn random_id() -> String {
         .collect()
 }
 
-struct Upload<R> {
-    key: String,
+struct Upload {
+    id: String,
     tx: channel::Sender<Command>,
-    inner: R,
+    inner: Box<dyn Read + Send>,
     bytes_read: u64,
     started: Instant, // TODO: sample recent upload speed instead of total
     last_update: Instant,
 }
 
-impl<R> Upload<R> {
-    fn new(tx: channel::Sender<Command>, inner: R) -> (Upload<R>, String) {
-        let key = random_id();
+impl Upload {
+    fn new(tx: channel::Sender<Command>, inner: Box<dyn Read + Send>) -> (Upload, String) {
+        let id = random_id();
         let now = Instant::now();
         (Upload {
-            key: key.clone(),
+            id: id.clone(),
             tx,
             inner,
             bytes_read: 0,
             started: now,
             last_update: now,
-        }, key)
+        }, id)
     }
 
     fn notify(&mut self) {
@@ -150,7 +175,7 @@ impl<R> Upload<R> {
                 self.bytes_read
             };
             notify(&self.tx, ProgressUpdate::UploadProgress(UploadProgress {
-                key: self.key.clone(),
+                id: self.id.clone(),
                 bytes_read: self.bytes_read,
                 speed,
             }));
@@ -164,7 +189,7 @@ fn notify(tx: &channel::Sender<Command>, update: ProgressUpdate) {
     tx.send(Command::ProgressUpdate(update)).unwrap();
 }
 
-impl<R: Read> Read for Upload<R> {
+impl Read for Upload {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner.read(buf)
             .map(|n| {
