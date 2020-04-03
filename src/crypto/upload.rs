@@ -7,21 +7,25 @@ use std::io::prelude::*;
 
 pub struct EncryptedUpload<R> {
     inner: R,
-    header: Vec<u8>,
-    stream: CryptoWriter<Vec<u8>>,
+    header_len: u64,
+    stream: CryptoWriter,
+    buf: Vec<u8>,
+    cursor: usize,
     eof: bool,
 }
 
-impl<R> EncryptedUpload<R> {
+impl<R: Read> EncryptedUpload<R> {
     pub fn new(inner: R, pubkey: &PublicKey, seckey: Option<&SecretKey>) -> Result<EncryptedUpload<R>> {
-        let buf = Vec::new();
-        let stream = CryptoWriter::init(buf, pubkey, seckey)?;
-        let header = stream.inner().clone();
+        let mut buf = Vec::new();
+        let stream = CryptoWriter::init(&mut buf, pubkey, seckey)?;
+        let header_len = buf.len() as u64;
 
         Ok(EncryptedUpload {
             inner,
-            header,
+            header_len,
             stream,
+            buf,
+            cursor: 0,
             eof: false,
         })
     }
@@ -29,32 +33,53 @@ impl<R> EncryptedUpload<R> {
     pub fn total_with_overhead(&self, total: u64) -> u64 {
         let carry = (total % stream::CHUNK_SIZE as u64) + secretstream::ABYTES as u64;
         let total = (total / stream::CHUNK_SIZE as u64) * (stream::CHUNK_SIZE + secretstream::ABYTES) as u64;
-        self.header.len() as u64 + total + carry
+        self.header_len + total + carry
+    }
+
+    fn fill_bytes(&mut self) -> io::Result<()> {
+        // refill buffer
+        let mut buf = [0u8; stream::CHUNK_SIZE];
+        let n = self.inner.read(&mut buf)?;
+
+        if n != stream::CHUNK_SIZE {
+            self.eof = true;
+        }
+
+        // reset our cursor
+        self.cursor = 0;
+        self.stream.push(&buf[..n], self.eof, &mut self.buf)
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+
+        Ok(())
+    }
+
+    fn cursor(&self) -> &[u8] {
+        &self.buf[self.cursor..]
     }
 }
 
 impl<R: Read> Read for EncryptedUpload<R> {
-    fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
-        while !self.eof && self.stream.inner().len() < out.len()  {
-            let mut buf = [0u8; stream::CHUNK_SIZE];
-            let n = self.inner.read(&mut buf)?;
+    fn read(&mut self, mut out: &mut [u8]) -> io::Result<usize> {
+        let mut n = 0;
 
-            if n != stream::CHUNK_SIZE {
-                self.eof = true;
+        while (!self.eof || self.cursor().len() > 0) && out.len() > 0 {
+            // check if we need to refill our buffer
+            if !self.eof && self.cursor().len() == 0 {
+                trace!("buffering encrypted bytes");
+                self.fill_bytes()?;
             }
 
-            self.stream.push(&buf[..n], self.eof)
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+            // copy from our buffer into the read buffer
+            let buf = self.cursor();
+            let len = std::cmp::min(buf.len(), out.len());
+            let len = Read::read(&mut &buf[..len], &mut out[..len])?;
+
+            out = &mut out[len..];
+            self.cursor += len;
+            n += len;
         }
 
-        let buf = self.stream.inner_mut();
-        let len = std::cmp::min(buf.len(), out.len());
-        // TODO: this is probably very inefficient
-        for (i, b) in buf.drain(..len).enumerate() {
-            out[i] = b;
-        }
-
-        Ok(len)
+        Ok(n)
     }
 }
 

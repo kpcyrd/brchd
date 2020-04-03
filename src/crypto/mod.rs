@@ -1,5 +1,6 @@
 use crate::args::Args;
 use sodiumoxide::crypto::box_::{self, PublicKey, SecretKey};
+use sodiumoxide::crypto::secretstream;
 use crate::config::{EncryptConfig, DecryptConfig};
 use crate::crypto::stream::{CryptoReader, CryptoWriter};
 use crate::errors::*;
@@ -55,21 +56,23 @@ pub fn run_encrypt(args: Args) -> Result<()> {
 
         info!("encrypting {:?}", path);
         let mut r = File::open(path)?;
-        let w = OpenOptions::new()
+        let mut f = OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(&temp_path)?;
 
-        let mut w = CryptoWriter::init(w, &config.pubkey, config.seckey.as_ref())?;
+        let mut w = CryptoWriter::init(&mut f, &config.pubkey, config.seckey.as_ref())?;
 
         let mut size = 0;
         let mut buf = [0u8; stream::CHUNK_SIZE];
+        let mut out = Vec::with_capacity(buf.len() + secretstream::ABYTES);
         loop {
             let n = r.read(&mut buf)?;
             if n == 0 {
                 break;
             }
-            w.push(&buf[..n], n != stream::CHUNK_SIZE)?;
+            w.push(&buf[..n], n != stream::CHUNK_SIZE, &mut out)?;
+            f.write_all(&out)?;
             size += n;
         }
 

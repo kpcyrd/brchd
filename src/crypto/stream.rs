@@ -85,13 +85,12 @@ impl<T: Read> CryptoReader<T> {
     }
 }
 
-pub struct CryptoWriter<T> {
-    w: T,
+pub struct CryptoWriter {
     stream: Stream<Push>,
 }
 
-impl<T: Write> CryptoWriter<T> {
-    pub fn init(mut w: T, pubkey: &PublicKey, seckey: Option<&SecretKey>) -> Result<CryptoWriter<T>> {
+impl CryptoWriter {
+    pub fn init<T: Write>(mut w: T, pubkey: &PublicKey, seckey: Option<&SecretKey>) -> Result<CryptoWriter> {
         let key = secretstream::gen_key();
 
         let header = header::Header {
@@ -105,22 +104,11 @@ impl<T: Write> CryptoWriter<T> {
         w.write_all(&header.0)?;
 
         Ok(CryptoWriter {
-            w,
             stream,
         })
     }
 
-    #[inline]
-    pub fn inner(&self) -> &T {
-        &self.w
-    }
-
-    #[inline]
-    pub fn inner_mut(&mut self) -> &mut T {
-        &mut self.w
-    }
-
-    pub fn push(&mut self, buf: &[u8], is_final: bool) -> Result<()> {
+    pub fn push(&mut self, buf: &[u8], is_final: bool, w: &mut Vec<u8>) -> Result<()> {
         let tag = if !is_final {
             Tag::Message
         } else {
@@ -128,10 +116,9 @@ impl<T: Write> CryptoWriter<T> {
         };
 
         debug!("encrypting {} bytes, tag={:?}", buf.len(), tag);
-        let c = self.stream.push(buf, None, tag)
+        self.stream.push_to_vec(buf, None, tag, w)
             .map_err(|_| format_err!("Failed to write to secretstream"))?;
-        self.w.write_all(&c)?;
-        debug!("wrote {} bytes to file", c.len());
+        debug!("wrote {} bytes to file", w.len());
 
         Ok(())
     }
@@ -168,6 +155,15 @@ mod tests {
         0x66,
     ];
 
+    // this function is tests-only until we actually need it somewhere
+    // we can also drop this if sodiumoxide stops clearing the Vec
+    fn push_append(cw: &mut CryptoWriter, buf: &[u8], is_final: bool, w: &mut Vec<u8>) -> Result<()> {
+        let mut out = Vec::new();
+        cw.push(buf, is_final, &mut out)?;
+        w.extend(out);
+        Ok(())
+    }
+
     #[test]
     fn roundtrip() {
         let sk = sec();
@@ -175,7 +171,7 @@ mod tests {
 
         let mut file = Vec::new();
         let mut w = CryptoWriter::init(&mut file, &pk, None).unwrap();
-        w.push(b"ohai!\n", true).unwrap();
+        push_append(&mut w, b"ohai!\n", true, &mut file).unwrap();
 
         let mut cur = std::io::Cursor::new(&file);
         let mut r = CryptoReader::init(&mut cur, &sk, None).unwrap().unwrap();
@@ -277,7 +273,7 @@ mod tests {
 
         let mut file = Vec::new();
         let mut w = CryptoWriter::init(&mut file, &their_pk, Some(&our_sk)).unwrap();
-        w.push(b"ohai!\n", true).unwrap();
+        push_append(&mut w, b"ohai!\n", true, &mut file).unwrap();
 
         let mut cur = std::io::Cursor::new(&file);
         let mut r = CryptoReader::init(&mut cur, &their_sk, Some(&our_pk)).unwrap().unwrap();
@@ -297,7 +293,7 @@ mod tests {
 
         let mut file = Vec::new();
         let mut w = CryptoWriter::init(&mut file, &their_pk, Some(&our_sk)).unwrap();
-        w.push(b"ohai!\n", true).unwrap();
+        push_append(&mut w, b"ohai!\n", true, &mut file).unwrap();
 
         assert_eq!(&file[32..64], &our_pk.0)
     }
