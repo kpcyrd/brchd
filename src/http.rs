@@ -170,7 +170,7 @@ async fn put_file(req: web::HttpRequest, config: web::Data<Arc<UploadConfig>>, p
         .sample_iter(&Alphanumeric)
         .take(16)
         .collect::<String>();
-    filename.push_str(".bin");
+    filename.push_str(".dat");
 
     save(payload, UploadContext::new(
         config.destination.clone(),
