@@ -9,12 +9,20 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        # os: [macos-latest, windows-latest, ubuntu-latest]
+        os: [macos-latest, ubuntu-latest]
 
     steps:
     - uses: actions/checkout@v2
-    - name: Install dependencies
+    - name: Install dependencies (apt)
+      if: matrix.os == 'ubuntu-latest'
       run: sudo apt-get install libsodium-dev
+    - name: Install dependencies (brew)
+      if: matrix.os == 'macos-latest'
+      run: brew install pkg-config libsodium
     - name: Build
       run: cargo build --verbose
     - name: Run tests

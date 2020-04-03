@@ -20,4 +20,4 @@
 
     apt install pkg-config libsodium-dev
     pacman -S pkg-config libsodium
-    brew install libsodium
+    brew install pkg-config libsodium
