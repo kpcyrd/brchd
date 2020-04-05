@@ -12,18 +12,29 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        # os: [macos-latest, windows-latest, ubuntu-latest]
-        os: [macos-latest, ubuntu-latest]
+        os: [macos-latest, windows-latest, ubuntu-latest]
 
     steps:
     - uses: actions/checkout@v2
+
     - name: Install dependencies (apt)
       if: matrix.os == 'ubuntu-latest'
       run: sudo apt-get install libsodium-dev
     - name: Install dependencies (brew)
       if: matrix.os == 'macos-latest'
       run: brew install pkg-config libsodium
+
     - name: Build
+      if: matrix.os != 'windows-latest'
       run: cargo build --verbose
     - name: Run tests
+      if: matrix.os != 'windows-latest'
       run: cargo test --verbose
+
+    # workaround to force static libsodium on windows
+    - name: Build (windows)
+      if: matrix.os == 'windows-latest'
+      run: cargo build --verbose --no-default-features
+    - name: Run tests (windows)
+      if: matrix.os == 'windows-latest'
+      run: cargo test --verbose --no-default-features
