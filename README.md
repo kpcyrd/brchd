@@ -21,3 +21,13 @@
     apt install pkg-config libsodium-dev
     pacman -S pkg-config libsodium
     brew install pkg-config libsodium
+
+## Windows
+
+There's basic windows support. You need to force a statically linked libsodium
+with:
+
+    cargo build --release --no-default-features
+
+Running the receiver (`-H`) on windows is considered insecure and highly
+discouraged.
