@@ -462,6 +462,7 @@ dependencies = [
  "humansize",
  "log",
  "markup5ever_rcdom",
+ "named_pipe",
  "nom",
  "rand",
  "reqwest",
@@ -1502,6 +1503,15 @@ dependencies = [
  "net2",
  "winapi 0.2.8",
  "ws2_32-sys",
+]
+
+[[package]]
+name = "named_pipe"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad9c443cce91fc3e12f017290db75dde490d685cdaaf508d7159d7cf41f0eb2b"
+dependencies = [
+ "winapi 0.3.8",
 ]
 
 [[package]]

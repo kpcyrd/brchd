@@ -2,6 +2,7 @@ use crate::args::Args;
 use crate::config::{self, ConfigFile};
 use crate::crypto;
 use crate::errors::*;
+use crate::ipc;
 use serde::{Serialize, Deserialize};
 use sodiumoxide::crypto::box_::{PublicKey, SecretKey};
 use std::path::PathBuf;
@@ -22,7 +23,7 @@ impl DaemonConfig {
     }
 
     fn build(config: ConfigFile, args: &Args) -> Result<DaemonConfig> {
-        let socket = config::build_socket_path(config.daemon.socket, false)?;
+        let socket = ipc::build_socket_path(config.daemon.socket, false)?;
 
         let mut destination = config.daemon.destination
             .ok_or_else(|| format_err!("destination is required"))?;

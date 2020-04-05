@@ -1,6 +1,7 @@
 use crate::args::Args;
-use crate::config::{self, ConfigFile};
+use crate::config::ConfigFile;
 use crate::errors::*;
+use crate::ipc;
 use serde::{Serialize, Deserialize};
 use std::path::PathBuf;
 
@@ -16,7 +17,7 @@ impl ClientConfig {
     }
 
     fn build(config: ConfigFile, _args: &Args) -> Result<ClientConfig> {
-        let socket = config::build_socket_path(config.daemon.socket, true)?;
+        let socket = ipc::build_socket_path(config.daemon.socket, true)?;
 
         Ok(ClientConfig {
             socket,

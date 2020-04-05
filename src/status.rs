@@ -9,7 +9,7 @@ use std::io::prelude::*;
 use std::time::{Instant, Duration};
 
 const MAX_FILENAME_LEN: usize = 20;
-const MINIMUM_WIDTH: u16 = 24;
+const MINIMUM_WIDTH: u16 = 48;
 const PROGRESS_BAR_OVERHEAD: u64 = 21 + MAX_FILENAME_LEN as u64;
 const UPDATE_NOTIFY_RATELIMIT: Duration = Duration::from_millis(200);
 

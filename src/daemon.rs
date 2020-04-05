@@ -2,14 +2,13 @@ use bufstream::BufStream;
 use crate::args::Args;
 use crate::config::DaemonConfig;
 use crate::errors::*;
-use crate::ipc::{self, IpcMessage};
+use crate::ipc::{self, IpcServer, IpcMessage};
 use crate::uploader::Worker;
 use crate::queue::Task;
 use crate::status::{Status, ProgressUpdate};
 use crossbeam_channel::{self as channel, select};
 use std::collections::VecDeque;
-use std::fs;
-use std::os::unix::net::{UnixStream, UnixListener};
+use std::io::prelude::*;
 use std::thread;
 use std::time::Duration;
 
@@ -130,13 +129,13 @@ impl Server {
     }
 }
 
-struct Client {
-    stream: BufStream<UnixStream>,
+struct Client<S: Read + Write> {
+    stream: BufStream<S>,
     tx: channel::Sender<Command>,
 }
 
-impl Client {
-    fn new(tx: channel::Sender<Command>, stream: UnixStream) -> Client {
+impl<S: Read + Write> Client<S> {
+    fn new(tx: channel::Sender<Command>, stream: S) -> Client<S> {
         let stream = BufStream::new(stream);
         Client {
             stream,
@@ -200,7 +199,7 @@ impl Client {
     }
 }
 
-fn accept(tx: channel::Sender<Command>, stream: UnixStream) {
+fn accept<S: Read + Write>(tx: channel::Sender<Command>, stream: S) {
     debug!("accepted ipc connection");
     let mut client = Client::new(tx, stream);
     if let Err(err) = client.run() {
@@ -210,17 +209,8 @@ fn accept(tx: channel::Sender<Command>, stream: UnixStream) {
 
 pub fn run(args: &Args) -> Result<()> {
     let config = DaemonConfig::load(&args)?;
-    let path = config.socket;
-
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .context("Failed to create socket parent folder")?;
-    }
-
-    if path.exists() {
-        fs::remove_file(&path)
-            .context("Failed to remove old socket")?;
-    }
+    let listener = IpcServer::bind(&config.socket)
+        .context("Failed to create ipc server")?;
 
     let total_workers = config.concurrency;
     let (tx, rx) = channel::unbounded();
@@ -241,19 +231,11 @@ pub fn run(args: &Args) -> Result<()> {
         server.run();
     });
 
-    let listener = UnixListener::bind(&path)
-        .context("Failed to bind to socket path")?;
     info!("ready to accept connections");
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                let tx = tx.clone();
-                thread::spawn(|| accept(tx, stream));
-            },
-            Err(_err) => {
-                break;
-            }
-        }
+    loop {
+        let stream = listener.accept()
+            .context("Failed to accept ipc client")?;
+        let tx = tx.clone();
+        thread::spawn(|| accept(tx, stream));
     }
-    Ok(())
 }

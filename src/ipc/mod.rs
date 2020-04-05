@@ -4,8 +4,14 @@ use crate::queue::{Task, QueueClient};
 use crate::status::Status;
 use serde::{Serialize, Deserialize};
 use std::io::prelude::*;
-use std::os::unix::net::UnixStream;
-use std::path::Path;
+
+#[cfg(unix)]
+#[path="unix.rs"]
+mod os;
+
+#[cfg(windows)]
+#[path="windows.rs"]
+mod os;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum IpcMessage {
@@ -17,7 +23,7 @@ pub enum IpcMessage {
     PushQueue(Task),
 }
 
-pub fn read(stream: &mut BufStream<UnixStream>) -> Result<Option<IpcMessage>> {
+pub fn read<S: Read + Write>(stream: &mut BufStream<S>) -> Result<Option<IpcMessage>> {
     let mut buf = String::new();
     let n = stream.read_line(&mut buf)?;
     if n > 0 {
@@ -29,7 +35,7 @@ pub fn read(stream: &mut BufStream<UnixStream>) -> Result<Option<IpcMessage>> {
     }
 }
 
-pub fn write(stream: &mut BufStream<UnixStream>, msg: &IpcMessage) -> Result<()> {
+pub fn write<S: Read + Write>(stream: &mut BufStream<S>, msg: &IpcMessage) -> Result<()> {
     debug!("sending to ipc: {:?}", msg);
     let mut buf = serde_json::to_string(msg)?;
     buf.push('\n');
@@ -38,9 +44,7 @@ pub fn write(stream: &mut BufStream<UnixStream>, msg: &IpcMessage) -> Result<()>
     Ok(())
 }
 
-pub struct IpcClient {
-    stream: BufStream<UnixStream>,
-}
+pub use self::os::{IpcClient, IpcServer, build_socket_path};
 
 impl QueueClient for IpcClient {
     fn push_work(&mut self, task: Task) -> Result<()> {
@@ -50,17 +54,6 @@ impl QueueClient for IpcClient {
 }
 
 impl IpcClient {
-    pub fn connect(path: &Path) -> Result<IpcClient> {
-        debug!("connecting to {:?}", path);
-        let stream = UnixStream::connect(path)
-            .context("Failed to connect to brchd socket, is brchd -D running?")?;
-        debug!("connected");
-        let stream = BufStream::new(stream);
-        Ok(IpcClient {
-            stream,
-        })
-    }
-
     pub fn subscribe(&mut self) -> Result<()> {
         write(&mut self.stream, &IpcMessage::Subscribe)
     }
