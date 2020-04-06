@@ -1,0 +1,36 @@
+name: Binaries
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install dependencies
+      run: sudo apt-get install musl-tools
+
+    - name: Install musl rustup target
+      run: rustup target add x86_64-unknown-linux-musl
+
+    - name: Build
+      run: cargo build --verbose --release --no-default-features --features=rustls --target x86_64-unknown-linux-musl
+
+    - name: Strip binary
+      run: strip target/x86_64-unknown-linux-musl/release/brchd
+
+    - name: Archive static build
+      uses: actions/upload-artifact@v1
+      with:
+        name: static
+        path: target/x86_64-unknown-linux-musl/release/brchd
