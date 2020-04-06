@@ -218,6 +218,7 @@ pub fn run(args: &Args) -> Result<()> {
         let tx = tx.clone();
         let mut worker = Worker::new(tx,
                                      config.destination.clone(),
+                                     config.proxy.clone(),
                                      config.pubkey.clone(),
                                      config.seckey.clone())
             .context("Failed to create worker")?;

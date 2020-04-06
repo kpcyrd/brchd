@@ -6,6 +6,7 @@ use crate::status::{ProgressUpdate, UploadStart, UploadProgress, UploadEnd};
 use crossbeam_channel::{self as channel};
 use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
+use reqwest::Proxy;
 use reqwest::blocking::{Client, multipart};
 use sodiumoxide::crypto::box_::{PublicKey, SecretKey};
 use std::fs::{self, File};
@@ -29,11 +30,14 @@ pub struct Worker {
 }
 
 impl Worker {
-    pub fn new(tx: channel::Sender<Command>, destination: String, pubkey: Option<PublicKey>, seckey: Option<SecretKey>) -> Result<Worker> {
-        let client = Client::builder()
+    pub fn new(tx: channel::Sender<Command>, destination: String, proxy: Option<String>, pubkey: Option<PublicKey>, seckey: Option<SecretKey>) -> Result<Worker> {
+        let mut builder = Client::builder()
             .connect_timeout(Duration::from_secs(5))
-            .timeout(None)
-            .build()?;
+            .timeout(None);
+        if let Some(proxy) = &proxy {
+            builder = builder.proxy(Proxy::all(proxy)?);
+        }
+        let client = builder.build()?;
 
         let crypto = pubkey.map(|pubkey| {
             CryptoConfig {

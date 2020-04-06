@@ -62,6 +62,9 @@ pub struct Args {
     /// Decrypt with the given secret key
     #[structopt(long, env="BRCHD_SECKEY")]
     pub seckey: Option<String>,
+    /// Use a proxy for all requests (e.g. socks5://127.0.0.1:9050)
+    #[structopt(short="x", long)]
+    pub proxy: Option<String>,
 }
 
 fn parse_addr(s: &str) -> Result<SocketAddr> {

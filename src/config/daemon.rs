@@ -12,6 +12,7 @@ pub struct DaemonConfig {
     pub socket: PathBuf,
     pub destination: String,
     pub concurrency: usize,
+    pub proxy: Option<String>,
     pub pubkey: Option<PublicKey>,
     pub seckey: Option<SecretKey>,
 }
@@ -64,6 +65,7 @@ impl DaemonConfig {
             socket,
             destination,
             concurrency,
+            proxy: config.daemon.proxy,
             pubkey,
             seckey,
         })

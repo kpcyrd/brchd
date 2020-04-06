@@ -8,6 +8,7 @@ use std::path::PathBuf;
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct ClientConfig {
     pub socket: PathBuf,
+    pub proxy: Option<String>,
 }
 
 impl ClientConfig {
@@ -21,6 +22,7 @@ impl ClientConfig {
 
         Ok(ClientConfig {
             socket,
+            proxy: config.daemon.proxy,
         })
     }
 }

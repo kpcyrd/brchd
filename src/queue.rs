@@ -5,7 +5,7 @@ use crate::ipc::IpcClient;
 use crate::spider;
 use crate::standalone::Standalone;
 use crate::walkdir;
-use reqwest::Client;
+use reqwest::{Client, Proxy};
 use serde::{Serialize, Deserialize};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -62,10 +62,13 @@ pub async fn run_add(args: Args) -> Result<()> {
         Box::new(IpcClient::connect(&config.socket)?)
     };
 
-    let http = Client::builder()
+    let mut builder = Client::builder()
         .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(60))
-        .build()?;
+        .timeout(Duration::from_secs(60));
+    if let Some(proxy) = &config.proxy {
+        builder = builder.proxy(Proxy::all(proxy)?);
+    }
+    let http = builder.build()?;
 
     for path in &args.paths {
         if path.starts_with("https://") || path.starts_with("https://") {

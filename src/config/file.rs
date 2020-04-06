@@ -64,6 +64,10 @@ impl ConfigFile {
             self.daemon.concurrency = Some(v);
         }
 
+        if let Some(v) = &args.proxy {
+            self.daemon.proxy = Some(v.clone());
+        }
+
         if let Some(v) = &args.path_format {
             self.http.path_format = Some(v.clone());
         }
@@ -98,6 +102,7 @@ pub struct Daemon {
     pub destination: Option<String>,
     pub concurrency: Option<usize>,
     pub pubkey: Option<String>,
+    pub proxy: Option<String>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
