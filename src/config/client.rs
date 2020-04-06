@@ -30,13 +30,25 @@ mod tests {
 
     #[test]
     fn default_client_config() {
+        let config = ConfigFile::load_slice(br#""#).unwrap();
+        let config = ClientConfig::build(config, &Args::default()).unwrap();
+        assert_eq!(config, ClientConfig {
+            socket: None,
+            proxy: None,
+        });
+    }
+
+    #[test]
+    fn all_client_config() {
         let config = ConfigFile::load_slice(br#"
 [daemon]
 socket = "/asdf/brchd.socket"
+proxy = "socks5://127.0.0.1:9150"
 "#).unwrap();
         let config = ClientConfig::build(config, &Args::default()).unwrap();
         assert_eq!(config, ClientConfig {
-            socket: PathBuf::from("/asdf/brchd.socket"),
+            socket: Some(PathBuf::from("/asdf/brchd.socket")),
+            proxy: Some("socks5://127.0.0.1:9150".to_string()),
         });
     }
 }

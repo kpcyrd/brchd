@@ -52,4 +52,20 @@ destination = "/drop"
             path_format: "%p".to_string(),
         });
     }
+
+    #[test]
+    fn all_upload_config() {
+        let config = ConfigFile::load_slice(br#"
+[http]
+destination = "/drop"
+bind_addr = "127.0.0.1:1337"
+path_format = "%Y-%m-%d/%r-%f"
+"#).unwrap();
+        let config = UploadConfig::build(config, &Args::default()).unwrap();
+        assert_eq!(config, UploadConfig {
+            bind_addr: "127.0.0.1:1337".parse().unwrap(),
+            destination: "/drop".to_string(),
+            path_format: "%Y-%m-%d/%r-%f".to_string(),
+        });
+    }
 }
