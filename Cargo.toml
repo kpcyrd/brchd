@@ -7,8 +7,10 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["dynamic-libsodium"]
+default = ["dynamic-libsodium", "native-tls"]
 dynamic-libsodium = ["sodiumoxide/use-pkg-config"]
+native-tls = ["reqwest/native-tls"]
+rustls = ["reqwest/rustls-tls"]
 
 [dependencies]
 structopt = "0.3"
@@ -23,7 +25,7 @@ actix-web = "2.0.0"
 actix-service = "1.0.5"
 actix-multipart = "0.2.0"
 futures = "0.3.4"
-reqwest = { version="0.10.2", features=["blocking"] }
+reqwest = { version="0.10.2", default-features=false, features=["blocking"] }
 sodiumoxide = { version="0.2.5" }
 chrono = "0.4.10"
 rand = "0.7.3"
