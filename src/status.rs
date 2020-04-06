@@ -147,7 +147,7 @@ impl StatusWriter {
         Ok(())
     }
 
-    pub fn write(&mut self, status: Status) -> Result<()> {
+    pub fn write(&mut self, status: &Status) -> Result<()> {
         // never skip updates that we became idle
         if !status.is_idle() {
             // check ratelimit
@@ -186,6 +186,12 @@ impl StatusWriter {
             queue_size,
         )?;
 
+        Ok(())
+    }
+
+    #[inline]
+    pub fn finish(&self) -> Result<()> {
+        self.term.clear_line()?;
         Ok(())
     }
 }

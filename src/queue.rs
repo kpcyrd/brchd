@@ -1,5 +1,5 @@
 use crate::args::Args;
-use crate::config::ClientConfig;
+use crate::config::{ClientConfig, DaemonConfig};
 use crate::errors::*;
 use crate::ipc::IpcClient;
 use crate::spider;
@@ -28,9 +28,12 @@ impl Task {
         }
     }
 
-    pub fn url(url: Url) -> Task {
+    pub fn url(path: String, url: Url) -> Task {
         Task {
-            target: Target::Url(url),
+            target: Target::Url(UrlTarget {
+                path,
+                url,
+            }),
             size: 0,
         }
     }
@@ -39,7 +42,7 @@ impl Task {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Target {
     Path(PathTarget),
-    Url(Url),
+    Url(UrlTarget),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,16 +51,26 @@ pub struct PathTarget {
     pub resolved: PathBuf,
 }
 
-pub trait QueueClient {
-    fn push_work(&mut self, task: Task) -> Result<()>;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UrlTarget {
+    pub path: String,
+    pub url: Url,
 }
 
-#[actix_rt::main]
-pub async fn run_add(args: Args) -> Result<()> {
+pub trait QueueClient {
+    fn push_work(&mut self, task: Task) -> Result<()>;
+
+    fn finish(&mut self) -> Result<()> {
+        Ok(())
+    }
+}
+
+pub fn run_add(args: Args) -> Result<()> {
     let config = ClientConfig::load(&args)?;
 
-    let mut client: Box<dyn QueueClient> = if let Some(dest) = args.destination {
-        Box::new(Standalone::new(dest))
+    let client: Box<dyn QueueClient> = if args.destination.is_some() {
+        let config = DaemonConfig::load(&args)?;
+        Box::new(Standalone::new(config)?)
     } else {
         Box::new(IpcClient::connect(config.socket)?)
     };
@@ -70,6 +83,11 @@ pub async fn run_add(args: Args) -> Result<()> {
     }
     let http = builder.build()?;
 
+    exec(args, client, http)
+}
+
+#[actix_rt::main]
+pub async fn exec(args: Args, mut client: Box<dyn QueueClient>, http: Client) -> Result<()> {
     for path in &args.paths {
         if path.starts_with("https://") || path.starts_with("https://") {
             spider::queue(&mut client, &http, path).await?;
@@ -77,6 +95,5 @@ pub async fn run_add(args: Args) -> Result<()> {
             walkdir::queue(&mut client, path)?;
         }
     }
-
-    Ok(())
+    client.finish()
 }

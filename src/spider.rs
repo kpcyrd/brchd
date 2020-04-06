@@ -5,10 +5,10 @@ use reqwest::Client;
 use std::collections::VecDeque;
 use url::Url;
 
-pub async fn queue(client: &mut Box<dyn QueueClient>, http: &Client, target: &str) -> Result<()> {
+pub async fn queue(client: &mut Box<dyn QueueClient>, http: &Client, base: &str) -> Result<()> {
     let mut queue = VecDeque::new();
 
-    let target = target.parse::<Url>()
+    let target = base.parse::<Url>()
         .context("Failed to parse target as url")?;
     queue.push_back(target);
 
@@ -35,7 +35,8 @@ pub async fn queue(client: &mut Box<dyn QueueClient>, http: &Client, target: &st
                 info!("traversing into directory: {:?}", link_str);
                 queue.push_back(link);
             } else {
-                let task = Task::url(link);
+                let relative = link_str[base.len()..].to_string();
+                let task = Task::url(relative, link);
                 client.push_work(task)?;
             }
         }

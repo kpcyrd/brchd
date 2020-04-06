@@ -21,6 +21,7 @@ pub enum IpcMessage {
     QueueReq,
     QueueResp(Vec<Task>),
     PushQueue(Task),
+    Shutdown,
 }
 
 pub fn read<S: Read + Write>(stream: &mut BufStream<S>) -> Result<Option<IpcMessage>> {

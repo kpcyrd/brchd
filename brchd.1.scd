@@ -71,6 +71,17 @@ uploads.
 For scripting you may want to use *brchd -w* to block the script until all
 uploads are done.
 
+# STANDALONE
+
+It's possible to run brchd in standalone mode if you provide both a path and a
+destination:
+
+```
+brchd -d @home /var/log/
+```
+
+This allows uploading without a daemon.
+
 # CONFIGURATION
 
 You can create a configuration file to define defaults. The system

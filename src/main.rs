@@ -71,7 +71,7 @@ fn run() -> Result<()> {
         client.subscribe()?;
         let mut w = StatusWriter::new();
         while let Some(status) = client.read_status()? {
-            w.write(status)?;
+            w.write(&status)?;
         }
     }
 

@@ -19,9 +19,10 @@ pub enum Command {
     PushQueue(Task),
     FetchQueue(channel::Sender<Vec<Task>>),
     ProgressUpdate(ProgressUpdate),
+    Shutdown,
 }
 
-struct Server {
+pub struct Server {
     rx: channel::Receiver<Command>,
     queue: VecDeque<Task>,
     queue_size: u64,
@@ -29,10 +30,11 @@ struct Server {
     idle_workers: VecDeque<channel::Sender<Task>>,
     subscribers: Vec<channel::Sender<IpcMessage>>,
     status: Status,
+    shutdown: bool,
 }
 
 impl Server {
-    fn new(rx: channel::Receiver<Command>, total_workers: usize) -> Server {
+    pub fn new(rx: channel::Receiver<Command>, total_workers: usize) -> Server {
         Server {
             rx,
             queue: VecDeque::new(),
@@ -41,10 +43,11 @@ impl Server {
             idle_workers: VecDeque::new(),
             subscribers: Vec::new(),
             status: Status::default(),
+            shutdown: false,
         }
     }
 
-    fn add_subscriber(&mut self, tx: channel::Sender<IpcMessage>) {
+    pub fn add_subscriber(&mut self, tx: channel::Sender<IpcMessage>) {
         debug!("adding new subscriber");
         tx.send(IpcMessage::StatusResp(self.status.clone())).ok();
         self.subscribers.push(tx);
@@ -78,7 +81,7 @@ impl Server {
         }
     }
 
-    fn pop_queue(&mut self, worker: channel::Sender<Task>) {
+    fn pop_queue(&mut self, worker: channel::Sender<Task>) -> bool {
         if let Some(task) = self.queue.pop_front() {
             self.queue_size -= task.size;
             debug!("assigning task to worker: {:?}", task);
@@ -88,6 +91,9 @@ impl Server {
             self.idle_workers.push_back(worker);
         }
         self.update_stats();
+
+        // check if we are supposed to shutdown the server
+        self.shutdown && self.queue.len() == 0 && self.idle_workers.len() == self.total_workers
     }
 
     fn push_work(&mut self, task: Task) {
@@ -109,17 +115,20 @@ impl Server {
         worker.send(queue).expect("worker thread died");
     }
 
-    fn run(&mut self) {
+    pub fn run(&mut self) {
         loop {
             select! {
                 recv(self.rx) -> msg => {
                     debug!("received from channel: {:?}", msg);
                     match msg {
                         Ok(Command::Subscribe(tx)) => self.add_subscriber(tx),
-                        Ok(Command::PopQueue(tx)) => self.pop_queue(tx),
+                        Ok(Command::PopQueue(tx)) => if self.pop_queue(tx) {
+                            break;
+                        },
                         Ok(Command::PushQueue(task)) => self.push_work(task),
                         Ok(Command::FetchQueue(tx)) => self.fetch_queue(tx),
                         Ok(Command::ProgressUpdate(update)) => self.update_progress(update),
+                        Ok(Command::Shutdown) => self.shutdown = true,
                         Err(_) => break,
                     }
                 }
@@ -192,6 +201,8 @@ impl<S: Read + Write> Client<S> {
                 IpcMessage::PushQueue(task) => {
                     self.write_server(Command::PushQueue(task));
                 },
+
+                IpcMessage::Shutdown => bail!("Unexpected ipc message"),
             }
         }
         debug!("ipc client disconnected");

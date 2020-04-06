@@ -1,7 +1,7 @@
 use crate::crypto::upload::EncryptedUpload;
 use crate::daemon::Command;
 use crate::errors::*;
-use crate::queue::{Target, PathTarget};
+use crate::queue::{Task, Target, PathTarget};
 use crate::status::{ProgressUpdate, UploadStart, UploadProgress, UploadEnd};
 use crossbeam_channel::{self as channel};
 use rand::{thread_rng, Rng};
@@ -54,13 +54,15 @@ impl Worker {
         })
     }
 
+    fn pop_work(&self) -> Option<Task> {
+        let (tx, rx) = channel::unbounded();
+        self.tx.send(Command::PopQueue(tx)).unwrap();
+        rx.recv().ok()
+    }
+
     pub fn run(&mut self) {
         // TODO: lots of smart logic missing here
-        loop {
-            let (tx, rx) = channel::unbounded();
-            self.tx.send(Command::PopQueue(tx)).unwrap();
-            let task = rx.recv().unwrap();
-
+        while let Some(task) = self.pop_work() {
             info!("starting task: {:?}", task);
             let (path, result) = match task.target {
                 Target::Path(PathTarget {
