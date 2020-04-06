@@ -1,13 +1,12 @@
 use crate::args::Args;
 use crate::config::ConfigFile;
 use crate::errors::*;
-use crate::ipc;
 use serde::{Serialize, Deserialize};
 use std::path::PathBuf;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct ClientConfig {
-    pub socket: PathBuf,
+    pub socket: Option<PathBuf>,
     pub proxy: Option<String>,
 }
 
@@ -18,10 +17,8 @@ impl ClientConfig {
     }
 
     fn build(config: ConfigFile, _args: &Args) -> Result<ClientConfig> {
-        let socket = ipc::build_socket_path(config.daemon.socket, true)?;
-
         Ok(ClientConfig {
-            socket,
+            socket: config.daemon.socket,
             proxy: config.daemon.proxy,
         })
     }

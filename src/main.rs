@@ -47,13 +47,13 @@ fn run() -> Result<()> {
         crypto::run_keygen(args)?;
     } else if args.queue {
         let config = ClientConfig::load(&args)?;
-        let mut client = IpcClient::connect(&config.socket)?;
+        let mut client = IpcClient::connect(config.socket)?;
         for task in client.fetch_queue()? {
             println!("{:?}", task);
         }
     } else if args.wait {
         let config = ClientConfig::load(&args)?;
-        let mut client = IpcClient::connect(&config.socket)?;
+        let mut client = IpcClient::connect(config.socket)?;
         client.subscribe()?;
         while let Some(status) = client.read_status()? {
             if status.queue == 0 && status.idle_workers == status.total_workers {
@@ -67,7 +67,7 @@ fn run() -> Result<()> {
     } else {
         // TODO: add --once option
         let config = ClientConfig::load(&args)?;
-        let mut client = IpcClient::connect(&config.socket)?;
+        let mut client = IpcClient::connect(config.socket)?;
         client.subscribe()?;
         let mut w = StatusWriter::new();
         while let Some(status) = client.read_status()? {

@@ -29,7 +29,8 @@ pub struct IpcClient {
 }
 
 impl IpcClient {
-    pub fn connect(path: &Path) -> Result<IpcClient> {
+    pub fn connect(path: Option<PathBuf>) -> Result<IpcClient> {
+        let path = build_socket_path(path, true)?;
         debug!("connecting to {:?}", path);
         let stream = UnixStream::connect(path)
             .context("Failed to connect to brchd socket, is brchd -D running?")?;

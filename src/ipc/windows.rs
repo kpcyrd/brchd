@@ -3,12 +3,21 @@ use crate::errors::*;
 use named_pipe::{PipeOptions, PipeServer, PipeClient};
 use std::path::{Path, PathBuf};
 
+pub fn build_socket_path(socket: Option<PathBuf>, _search: bool) -> Result<PathBuf> {
+    if let Some(path) = socket {
+        Ok(path)
+    } else {
+        Ok(PathBuf::from(r"\\.\pipe\brchd"))
+    }
+}
+
 pub struct IpcClient {
     pub stream: BufStream<PipeClient>,
 }
 
 impl IpcClient {
-    pub fn connect(path: &Path) -> Result<IpcClient> {
+    pub fn connect(path: Option<PathBuf>) -> Result<IpcClient> {
+        let path = build_socket_path(path, true)?;
         debug!("connecting to {:?}", path);
         let stream = PipeClient::connect(path)
             .context("Failed to connect to brchd socket, is brchd -D running?")?;
@@ -17,14 +26,6 @@ impl IpcClient {
         Ok(IpcClient {
             stream,
         })
-    }
-}
-
-pub fn build_socket_path(socket: Option<PathBuf>, _search: bool) -> Result<PathBuf> {
-    if let Some(path) = socket {
-        Ok(path)
-    } else {
-        Ok(PathBuf::from(r"\\.\pipe\brchd"))
     }
 }
 

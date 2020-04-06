@@ -59,7 +59,7 @@ pub async fn run_add(args: Args) -> Result<()> {
     let mut client: Box<dyn QueueClient> = if let Some(dest) = args.destination {
         Box::new(Standalone::new(dest))
     } else {
-        Box::new(IpcClient::connect(&config.socket)?)
+        Box::new(IpcClient::connect(config.socket)?)
     };
 
     let mut builder = Client::builder()
