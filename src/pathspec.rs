@@ -96,7 +96,7 @@ mod tests {
             destination: "/tmp/".to_string(),
             format: format.to_string(),
             dt: "1996-12-19T16:39:57Z".parse::<DateTime<Utc>>().unwrap(),
-            remote: "192.0.2.1".to_string(),
+            remote: Cow::Borrowed("192.0.2.1"),
             filename: "ohai.txt".to_string(),
             path: "b/c/ohai.txt".to_string(),
             full_path: Some("a/b/c/ohai.txt".to_string()),

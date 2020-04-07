@@ -93,6 +93,7 @@ destination = "http://127.0.0.1:7070"
             socket: PathBuf::from("/asdf/brchd.socket"),
             destination: "http://127.0.0.1:7070".to_string(),
             concurrency: 3,
+            path_format: "%p".to_string(),
             proxy: None,
             pubkey: None,
             seckey: None,
@@ -109,6 +110,9 @@ concurrency = 1
 proxy = "socks5://127.0.0.1:9150"
 pubkey = "cxvWJ2JmG+hcVAyLFJIsofNwD7AsxioWw+7hxDBbejs="
 
+[http]
+path_format = "%Y-%m-%d/%r-%f"
+
 [crypto]
 seckey = "5LYdSbVM3Pxnvzi71bZedjNXgnu0ZIjEObJeTqa3UAU="
 "#).unwrap();
@@ -117,6 +121,7 @@ seckey = "5LYdSbVM3Pxnvzi71bZedjNXgnu0ZIjEObJeTqa3UAU="
             socket: PathBuf::from("/asdf/brchd.socket"),
             destination: "http://127.0.0.1:7070".to_string(),
             concurrency: 1,
+            path_format: "%Y-%m-%d/%r-%f".to_string(),
             proxy: Some("socks5://127.0.0.1:9150".to_string()),
             pubkey: Some(PublicKey::from_slice(&[
                 115, 27, 214, 39, 98, 102, 27, 232, 92, 84, 12, 139, 20, 146,
@@ -146,6 +151,7 @@ destination = "http://127.0.0.1:7070"
             socket: PathBuf::from("/asdf/brchd.socket"),
             destination: "http://127.0.0.1:7070".to_string(),
             concurrency: 3,
+            path_format: "%p".to_string(),
             proxy: None,
             pubkey: None,
             seckey: None,
@@ -172,6 +178,7 @@ destination = "http://127.0.0.1:7070"
             socket: PathBuf::from("/asdf/brchd.socket"),
             destination: "http://127.0.0.1:7070".to_string(),
             concurrency: 3,
+            path_format: "%p".to_string(),
             proxy: None,
             pubkey: None,
             seckey: None,
@@ -204,6 +211,7 @@ pubkey = "cxvWJ2JmG+hcVAyLFJIsofNwD7AsxioWw+7hxDBbejs="
             socket: PathBuf::from("/asdf/brchd.socket"),
             destination: "http://127.0.0.1:7070".to_string(),
             concurrency: 3,
+            path_format: "%p".to_string(),
             proxy: None,
             pubkey: None,
             seckey: None,
@@ -226,6 +234,7 @@ seckey = "5LYdSbVM3Pxnvzi71bZedjNXgnu0ZIjEObJeTqa3UAU="
             socket: PathBuf::from("/asdf/brchd.socket"),
             destination: "http://127.0.0.1:7070".to_string(),
             concurrency: 3,
+            path_format: "%p".to_string(),
             proxy: None,
             pubkey: None,
             seckey: Some(SecretKey::from_slice(&[
@@ -250,6 +259,7 @@ pubkey = "cxvWJ2JmG+hcVAyLFJIsofNwD7AsxioWw+7hxDBbejs="
             socket: PathBuf::from("/asdf/brchd.socket"),
             destination: "http://127.0.0.1:7070".to_string(),
             concurrency: 3,
+            path_format: "%p".to_string(),
             proxy: None,
             pubkey: Some(PublicKey::from_slice(&[
                 115, 27, 214, 39, 98, 102, 27, 232, 92, 84, 12, 139, 20, 146,
@@ -279,6 +289,7 @@ pubkey = "cxvWJ2JmG+hcVAyLFJIsofNwD7AsxioWw+7hxDBbejs="
             socket: PathBuf::from("/asdf/brchd.socket"),
             destination: "http://127.0.0.1:7070".to_string(),
             concurrency: 3,
+            path_format: "%p".to_string(),
             proxy: None,
             pubkey: Some(PublicKey::from_slice(&[
                 236, 199, 137, 213, 166, 103, 80, 60, 241, 6, 134, 111, 51, 44,
@@ -306,6 +317,7 @@ pubkey = "8S3Esx/GSsWZZbfcp4XO/stoyA/ABCE9xXaqM53kEgM="
             socket: PathBuf::from("/asdf/brchd.socket"),
             destination: "http://127.0.0.1:7070".to_string(),
             concurrency: 3,
+            path_format: "%p".to_string(),
             proxy: None,
             pubkey: Some(PublicKey::from_slice(&[
                 241, 45, 196, 179, 31, 198, 74, 197, 153, 101, 183, 220, 167,
@@ -339,6 +351,7 @@ pubkey = "8S3Esx/GSsWZZbfcp4XO/stoyA/ABCE9xXaqM53kEgM="
             socket: PathBuf::from("/asdf/brchd.socket"),
             destination: "http://127.0.0.1:7070".to_string(),
             concurrency: 3,
+            path_format: "%p".to_string(),
             proxy: None,
             pubkey: Some(PublicKey::from_slice(&[
                 236, 199, 137, 213, 166, 103, 80, 60, 241, 6, 134, 111, 51, 44,
@@ -365,6 +378,7 @@ pubkey = "cxvWJ2JmG+hcVAyLFJIsofNwD7AsxioWw+7hxDBbejs="
             socket: PathBuf::from("/asdf/brchd.socket"),
             destination: "http://127.0.0.1:7070".to_string(),
             concurrency: 3,
+            path_format: "%p".to_string(),
             proxy: None,
             pubkey: Some(PublicKey::from_slice(&[
                 115, 27, 214, 39, 98, 102, 27, 232, 92, 84, 12, 139, 20, 146,
@@ -395,6 +409,7 @@ pubkey = "8S3Esx/GSsWZZbfcp4XO/stoyA/ABCE9xXaqM53kEgM="
             socket: PathBuf::from("/asdf/brchd.socket"),
             destination: "http://127.0.0.1:7070".to_string(),
             concurrency: 3,
+            path_format: "%p".to_string(),
             proxy: None,
             pubkey: Some(PublicKey::from_slice(&[
                 241, 45, 196, 179, 31, 198, 74, 197, 153, 101, 183, 220, 167,
@@ -431,6 +446,7 @@ pubkey = "8S3Esx/GSsWZZbfcp4XO/stoyA/ABCE9xXaqM53kEgM="
             socket: PathBuf::from("/asdf/brchd.socket"),
             destination: "http://127.0.0.1:7070".to_string(),
             concurrency: 3,
+            path_format: "%p".to_string(),
             proxy: None,
             pubkey: Some(PublicKey::from_slice(&[
                 236, 199, 137, 213, 166, 103, 80, 60, 241, 6, 134, 111, 51, 44,
@@ -470,6 +486,7 @@ pubkey = "8S3Esx/GSsWZZbfcp4XO/stoyA/ABCE9xXaqM53kEgM="
             socket: PathBuf::from("/asdf/brchd.socket"),
             destination: "http://127.0.0.1:7070".to_string(),
             concurrency: 3,
+            path_format: "%p".to_string(),
             proxy: None,
             pubkey: Some(PublicKey::from_slice(&[
                 241, 45, 196, 179, 31, 198, 74, 197, 153, 101, 183, 220, 167,
