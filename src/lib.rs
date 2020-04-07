@@ -4,6 +4,7 @@ pub mod args;
 pub mod config;
 pub mod crypto;
 pub mod daemon;
+pub mod destination;
 pub mod errors;
 pub mod html;
 pub mod http;

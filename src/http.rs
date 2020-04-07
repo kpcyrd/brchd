@@ -2,141 +2,25 @@ use actix_multipart::Multipart;
 use actix_multipart::Field;
 use actix_service::{Service, Transform};
 use actix_web::{dev::ServiceRequest, dev::ServiceResponse};
-use actix_web::{web, App, error, Error as ResponseError, HttpResponse, HttpServer};
+use actix_web::{web, App, Error as ResponseError, HttpResponse, HttpServer};
 use crate::args::Args;
 use crate::config::UploadConfig;
+use crate::destination::{self, save_async};
 use crate::errors::*;
 use crate::pathspec::UploadContext;
-use crate::temp;
-use futures::{Future, Stream, StreamExt};
+use futures::{Future, StreamExt};
 use futures::future::{ok, Ready};
-use humansize::{FileSize, file_size_opts};
 use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
-use std::io::Write;
 use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::fs::{self, File, OpenOptions};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-const MAX_DEST_OPEN_ATTEMPTS: u8 = 12;
-
-fn filename(field: &Field) -> Result<Option<(String, String)>> {
-    let content_type = match field.content_disposition() {
-        Some(x) => x,
-        _ => return Ok(None),
-    };
-    let path = match content_type.get_filename() {
-        Some(x) => x,
-        _ => return Ok(None),
-    };
-
-    let p = Path::new(path);
-    let mut i = p.iter().peekable();
-
-    let mut pb = PathBuf::new();
-    while let Some(x) = i.next() {
-        match x.to_str() {
-            Some("/") => (), // skip this
-            Some("..") => bail!("Directory traversal detected"),
-            Some(p) => {
-                pb.push(&p);
-                if i.peek().is_none() {
-                    return Ok(Some((
-                        // we've ensured that the path is valid utf-8, unwrap is fine
-                        pb.to_str().unwrap().to_string(),
-                        p.to_string(),
-                    )));
-                }
-            },
-            None => bail!("Filename is invalid utf8"),
-        }
-    }
-
-    bail!("Path is an empty string")
-}
-
-pub struct UploadHandle {
-    dest_path: PathBuf,
-    temp_path: PathBuf,
-    f: File,
-}
-
-fn open_upload_dest(ctx: UploadContext) -> Result<UploadHandle> {
-    for _ in 0..MAX_DEST_OPEN_ATTEMPTS {
-        let (path, deterministic) = ctx.generate()?;
-
-        let dest = Path::new(&ctx.destination);
-        let dest_path = dest.join(path);
-
-        let (parent, temp_path) = temp::partial_path(&dest_path)
-            .context("Failed to get partial path")?;
-        fs::create_dir_all(parent)?;
-
-        if let Ok(_f) = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&dest_path)
-        {
-            let f = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&temp_path)?;
-
-            return Ok(UploadHandle {
-                dest_path,
-                temp_path,
-                f,
-            });
-        } else if deterministic {
-            warn!("refusing to overwrite {:?}", dest_path);
-            bail!("Target file already exists")
-        }
-    }
-
-    bail!("Failed to find new filename to upload to")
-}
-
-async fn recv_all<S, E>(mut stream: S, mut f: File) -> std::result::Result<usize, ResponseError>
-where
-    S: Stream<Item=std::result::Result<web::Bytes, E>> + Unpin,
-    E: 'static + error::ResponseError,
-{
-    let mut n = 0;
-
-    while let Some(chunk) = stream.next().await {
-        let data = chunk?;
-        n += data.len();
-        // filesystem operations are blocking, we have to use threadpool
-        f = web::block(move || f.write_all(&data).map(|_| f)).await?;
-    }
-
-    Ok(n)
-}
-
-async fn save<S, E>(stream: S, ctx: UploadContext, remote_sock: String) -> std::result::Result<(), ResponseError>
-where
-    S: Stream<Item=std::result::Result<web::Bytes, E>> + Unpin,
-    E: 'static + error::ResponseError,
-{
-    // filesystem operations are blocking, we have to use threadpool
-    let upload = web::block(|| open_upload_dest(ctx))
-        .await?;
-    info!("{} writing upload into {:?}", remote_sock, upload.temp_path);
-
-    let size = recv_all(stream, upload.f).await?;
-
-    let size = size.file_size(file_size_opts::CONVENTIONAL)
-        .map_err(|e| format_err!("{}", e))?;
-
-    info!("{} moving upload {:?} -> {:?} ({})", remote_sock, upload.temp_path, upload.dest_path, size);
-    fs::rename(upload.temp_path, upload.dest_path)
-        .context("Failed to move temp file to final destination")
-        .map_err(Error::from)?;
-
-    Ok(())
+fn filename(field: &Field) -> Option<String> {
+    let content_type = field.content_disposition()?;
+    let path = content_type.get_filename()?;
+    Some(path.to_string())
 }
 
 async fn post_file(req: web::HttpRequest, config: web::Data<Arc<UploadConfig>>, mut payload: Multipart) -> std::result::Result<HttpResponse, ResponseError> {
@@ -147,15 +31,14 @@ async fn post_file(req: web::HttpRequest, config: web::Data<Arc<UploadConfig>>, 
     while let Some(item) = payload.next().await {
         let field = item?;
 
-        if let Some((path, filename)) = filename(&field)? {
-            save(field, UploadContext::new(
+        if let Some(path) = filename(&field) {
+            save_async(field, UploadContext::new(
                 config.destination.clone(),
                 config.path_format.clone(),
-                remote_addr.clone(),
-                filename,
-                path,
+                Some(remote_addr.clone()),
+                &path,
                 None,
-            ), remote_sock.clone()).await?;
+            )?, remote_sock.clone()).await?;
         }
     }
 
@@ -172,14 +55,13 @@ async fn put_file(req: web::HttpRequest, config: web::Data<Arc<UploadConfig>>, p
         .collect::<String>();
     filename.push_str(".dat");
 
-    save(payload, UploadContext::new(
+    destination::save_async(payload, UploadContext::new(
         config.destination.clone(),
         config.path_format.clone(),
-        remote_addr,
-        filename.clone(),
-        filename,
+        Some(remote_addr),
+        &filename,
         None,
-    ), remote_sock).await?;
+    )?, remote_sock).await?;
 
     Ok(HttpResponse::Ok().body("done.\n"))
 }

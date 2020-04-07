@@ -1,7 +1,9 @@
 use crate::crypto::upload::EncryptedUpload;
 use crate::daemon::Command;
+use crate::destination;
 use crate::errors::*;
 use crate::queue::{Task, Target, PathTarget};
+use crate::pathspec::UploadContext;
 use crate::status::{ProgressUpdate, UploadStart, UploadProgress, UploadEnd};
 use crossbeam_channel::{self as channel};
 use rand::{thread_rng, Rng};
@@ -14,6 +16,7 @@ use std::io;
 use std::io::prelude::*;
 use std::path::PathBuf;
 use std::time::{Instant, Duration};
+use url::Url;
 
 const UPDATE_NOTIFY_RATELIMIT: Duration = Duration::from_millis(250);
 
@@ -24,13 +27,25 @@ pub struct CryptoConfig {
 
 pub struct Worker {
     client: Client,
-    destination: String,
+    destination: Destination,
+    path_format: String,
     tx: channel::Sender<Command>,
     crypto: Option<CryptoConfig>,
 }
 
+pub enum Destination {
+    Path(String),
+    Url(Url),
+}
+
 impl Worker {
-    pub fn new(tx: channel::Sender<Command>, destination: String, proxy: Option<String>, pubkey: Option<PublicKey>, seckey: Option<SecretKey>) -> Result<Worker> {
+    pub fn new(tx: channel::Sender<Command>, destination: String, path_format: String, proxy: Option<String>, pubkey: Option<PublicKey>, seckey: Option<SecretKey>) -> Result<Worker> {
+        let destination = if let Ok(url) = destination.parse::<Url>() {
+            Destination::Url(url)
+        } else {
+            Destination::Path(destination)
+        };
+
         let mut builder = Client::builder()
             .connect_timeout(Duration::from_secs(5))
             .timeout(None);
@@ -49,6 +64,7 @@ impl Worker {
         Ok(Worker {
             client,
             destination,
+            path_format,
             tx,
             crypto,
         })
@@ -111,7 +127,10 @@ impl Worker {
             total,
         }));
 
-        let result = self.upload_file(upload, path, total);
+        let result = match &self.destination {
+            Destination::Path(destination) => self.copy_file(upload, destination.clone(), &path, resolved),
+            Destination::Url(url) => self.upload_file(url.clone(), upload, path, total),
+        };
         notify(&self.tx, ProgressUpdate::UploadEnd(UploadEnd {
             id,
         }));
@@ -119,7 +138,20 @@ impl Worker {
         result
     }
 
-    fn upload_file(&self, upload: Upload, path: String, total: u64) -> Result<()> {
+    fn copy_file(&self, mut upload: Upload, destination: String, path: &str, full_path: PathBuf) -> Result<()> {
+        let full_path = full_path.to_string_lossy(); // TODO: is to_string_lossy the right approach here?
+        let full_path = full_path.trim_start_matches('/').to_string();
+
+        destination::save_sync(&mut upload, UploadContext::new(
+            destination,
+            self.path_format.clone(),
+            None, // TODO: in case of an url, set this to the host
+            path,
+            Some(full_path),
+        )?)
+    }
+
+    fn upload_file(&self, url: Url, upload: Upload, path: String, total: u64) -> Result<()> {
         let file = multipart::Part::reader_with_length(upload, total)
             .file_name(path)
             .mime_str("application/octet-stream")?;
@@ -127,9 +159,9 @@ impl Worker {
         let form = multipart::Form::new()
             .part("file", file);
 
-        info!("uploading to {:?}", self.destination);
+        info!("uploading to {:?}", url);
         let resp = self.client
-            .post(&self.destination)
+            .post(url)
             .multipart(form)
             .send()?;
 

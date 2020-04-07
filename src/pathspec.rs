@@ -1,21 +1,31 @@
+use crate::destination;
 use crate::errors::*;
 use chrono::{DateTime, Utc, Datelike, Timelike};
 use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
+use std::borrow::Cow;
+use std::path::Path;
 
 pub struct UploadContext {
     pub destination: String,
     format: String,
     dt: DateTime<Utc>,
-    remote: String,
+    remote: Cow<'static, str>,
     filename: String,
     path: String,
     full_path: Option<String>,
 }
 
 impl UploadContext {
-    pub fn new(destination: String, format: String, remote: String, filename: String, path: String, full_path: Option<String>) -> UploadContext {
-        UploadContext {
+    pub fn new(destination: String, format: String, remote: Option<String>, path: &str, full_path: Option<String>) -> Result<UploadContext> {
+        let path = Path::new(path);
+        let (path, filename) = destination::get_filename(path)?;
+
+        let remote = remote
+            .map(Cow::Owned)
+            .unwrap_or(Cow::Borrowed("local"));
+
+        Ok(UploadContext {
             destination,
             format,
             dt: Utc::now(),
@@ -23,7 +33,7 @@ impl UploadContext {
             filename,
             path,
             full_path,
-        }
+        })
     }
 
     pub fn generate(&self) -> Result<(String, bool)> {

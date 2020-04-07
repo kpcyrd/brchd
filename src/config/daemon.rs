@@ -12,6 +12,7 @@ pub struct DaemonConfig {
     pub socket: PathBuf,
     pub destination: String,
     pub concurrency: usize,
+    pub path_format: String,
     pub proxy: Option<String>,
     pub pubkey: Option<PublicKey>,
     pub seckey: Option<SecretKey>,
@@ -42,6 +43,9 @@ impl DaemonConfig {
         let concurrency = config.daemon.concurrency
             .unwrap_or(config::DEFAULT_CONCURRENCY);
 
+        let path_format = config.http.path_format
+            .unwrap_or_else(|| config::DEFAULT_PATH_FORMAT.to_string());
+
         let pubkey = if let Some(pubkey) = pubkey {
             let pubkey = if let Some(alias) = config::resolve_alias(&config.pubkeys, &pubkey)? {
                 &alias.pubkey
@@ -65,6 +69,7 @@ impl DaemonConfig {
             socket,
             destination,
             concurrency,
+            path_format,
             proxy: config.daemon.proxy,
             pubkey,
             seckey,
