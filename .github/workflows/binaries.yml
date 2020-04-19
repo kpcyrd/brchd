@@ -9,10 +9,16 @@ on:
 jobs:
   build:
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        build:
+        - name: static
+          path: target/x86_64-unknown-linux-musl/release/brchd
+          run: cargo build --verbose --release --no-default-features --features=crypto,rustls --target x86_64-unknown-linux-musl
+        - name: minimal
+          path: target/release/brchd
+          run: cargo build --verbose --release --no-default-features
 
     steps:
     - uses: actions/checkout@v2
@@ -24,13 +30,13 @@ jobs:
       run: rustup target add x86_64-unknown-linux-musl
 
     - name: Build
-      run: cargo build --verbose --release --no-default-features --features=rustls --target x86_64-unknown-linux-musl
+      run: ${{ matrix.build.run }}
 
     - name: Strip binary
-      run: strip target/x86_64-unknown-linux-musl/release/brchd
+      run: strip ${{ matrix.build.path }}
 
-    - name: Archive static build
+    - name: Archive executable
       uses: actions/upload-artifact@v1
       with:
-        name: static
-        path: target/x86_64-unknown-linux-musl/release/brchd
+        name: ${{ matrix.build.name }}
+        path: ${{ matrix.build.path }}

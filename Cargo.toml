@@ -7,10 +7,11 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["dynamic-libsodium", "native-tls"]
+default = ["crypto", "dynamic-libsodium", "native-tls"]
 dynamic-libsodium = ["sodiumoxide/use-pkg-config"]
 native-tls = ["reqwest/native-tls"]
 rustls = ["reqwest/rustls-tls"]
+crypto = ["sodiumoxide", "nom", "base64", "base64-serde"]
 
 [dependencies]
 structopt = "0.3"
@@ -26,7 +27,6 @@ actix-service = "1.0.5"
 actix-multipart = "0.2.0"
 futures = "0.3.4"
 reqwest = { version="0.10.2", default-features=false, features=["blocking", "socks"] }
-sodiumoxide = { version="0.2.5" }
 chrono = "0.4.10"
 rand = "0.7.3"
 html5ever = "0.25"
@@ -38,9 +38,12 @@ crossbeam-channel = "0.4.2"
 console = "0.10.0"
 humansize = "1.1.0"
 dirs = "2.0.2"
-nom = "5.1.1"
-base64 = "0.12.0"
-base64-serde = "0.5.0"
+
+# crypto
+sodiumoxide = { version="0.2.5", optional = true }
+nom = { version = "5.1.1", optional = true }
+base64 = { version = "0.12.0", optional = true }
+base64-serde = { version = "0.5.0", optional = true }
 
 [target.'cfg(target_os="windows")'.dependencies]
 named_pipe = "0.4.1"

@@ -1,10 +1,9 @@
 use crate::args::Args;
 use crate::config::{self, ConfigFile};
-use crate::crypto;
+use crate::crypto::{self, PublicKey, SecretKey};
 use crate::errors::*;
 use crate::ipc;
 use serde::{Serialize, Deserialize};
-use sodiumoxide::crypto::box_::{PublicKey, SecretKey};
 use std::path::PathBuf;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -77,7 +76,7 @@ impl DaemonConfig {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature="crypto"))]
 mod tests {
     use super::*;
 
