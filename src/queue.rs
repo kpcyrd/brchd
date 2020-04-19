@@ -90,9 +90,9 @@ pub fn run_add(args: Args) -> Result<()> {
 pub async fn exec(args: Args, mut client: Box<dyn QueueClient>, http: Client) -> Result<()> {
     for path in &args.paths {
         if path.starts_with("https://") || path.starts_with("https://") {
-            spider::queue(&mut client, &http, path).await?;
+            spider::queue(client.as_mut(), &http, path).await?;
         } else {
-            walkdir::queue(&mut client, path)?;
+            walkdir::queue(client.as_mut(), path)?;
         }
     }
     client.finish()

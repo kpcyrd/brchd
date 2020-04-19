@@ -115,7 +115,7 @@ where
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = ResponseError;
-    type Future = Pin<Box<dyn Future<Output = std::result::Result<Self::Response, Self::Error>>>>;
+    type Future = Pin<Box<dyn Future<Output = std::result::Result<Self::Response, ResponseError>>>>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<std::result::Result<(), Self::Error>> {
         self.service.poll_ready(cx)

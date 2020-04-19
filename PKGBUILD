@@ -16,6 +16,11 @@ build() {
   scdoc < brchd.1.scd > brchd.1
 }
 
+check() {
+  cd ..
+  cargo test --release --locked
+}
+
 package() {
   cd ..
   install -Dm 755 target/release/${pkgname} -t "${pkgdir}/usr/bin"

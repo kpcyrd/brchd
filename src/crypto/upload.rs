@@ -62,9 +62,9 @@ impl<R: Read> Read for EncryptedUpload<R> {
     fn read(&mut self, mut out: &mut [u8]) -> io::Result<usize> {
         let mut n = 0;
 
-        while (!self.eof || self.cursor().len() > 0) && out.len() > 0 {
+        while (!self.eof || !self.cursor().is_empty()) && !out.is_empty() {
             // check if we need to refill our buffer
-            if !self.eof && self.cursor().len() == 0 {
+            if !self.eof && self.cursor().is_empty() {
                 trace!("buffering encrypted bytes");
                 self.fill_bytes()?;
             }

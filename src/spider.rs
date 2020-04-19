@@ -5,7 +5,7 @@ use reqwest::Client;
 use std::collections::VecDeque;
 use url::Url;
 
-pub async fn queue(client: &mut Box<dyn QueueClient>, http: &Client, base: &str) -> Result<()> {
+pub async fn queue(client: &mut dyn QueueClient, http: &Client, base: &str) -> Result<()> {
     let mut queue = VecDeque::new();
 
     let target = base.parse::<Url>()
