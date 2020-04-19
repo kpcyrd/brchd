@@ -34,7 +34,7 @@ jobs:
     # workaround to force static libsodium on windows
     - name: Build (windows)
       if: matrix.os == 'windows-latest'
-      run: cargo build --verbose --no-default-features --features=crypto,native-tls
+      run: cargo build --verbose --no-default-features --features=crypto,httpd,spider,native-tls
     - name: Run tests (windows)
       if: matrix.os == 'windows-latest'
-      run: cargo test --verbose --no-default-features --features=crypto,native-tls
+      run: cargo test --verbose --no-default-features --features=crypto,httpd,spider,native-tls

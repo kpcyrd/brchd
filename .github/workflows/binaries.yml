@@ -15,7 +15,7 @@ jobs:
         build:
         - name: static
           path: target/x86_64-unknown-linux-musl/release/brchd
-          run: cargo build --verbose --release --no-default-features --features=crypto,rustls --target x86_64-unknown-linux-musl
+          run: cargo build --verbose --release --no-default-features --features=crypto,httpd,spider,rustls --target x86_64-unknown-linux-musl
         - name: minimal
           path: target/release/brchd
           run: cargo build --verbose --release --no-default-features

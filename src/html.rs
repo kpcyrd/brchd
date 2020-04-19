@@ -1,7 +1,7 @@
 use crate::errors::*;
 use html5ever::{local_name, parse_document};
 use html5ever::tendril::TendrilSink;
-use rcdom::{Handle, NodeData, RcDom};
+use markup5ever_rcdom::{Handle, NodeData, RcDom};
 
 fn walk(outlinks: &mut Vec<String>, node: &Handle) {
     if let NodeData::Element {

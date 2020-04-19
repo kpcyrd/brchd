@@ -1,5 +1,3 @@
-extern crate markup5ever_rcdom as rcdom;
-
 pub mod args;
 pub mod config;
 
@@ -13,6 +11,7 @@ pub mod crypto;
 pub mod daemon;
 pub mod destination;
 pub mod errors;
+#[cfg(feature = "spider")]
 pub mod html;
 
 #[cfg(feature = "httpd")]
@@ -25,7 +24,14 @@ pub mod httpd;
 pub mod ipc;
 pub mod pathspec;
 pub mod queue;
+
+#[cfg(feature = "spider")]
+#[path="spider/mod.rs"]
 pub mod spider;
+#[cfg(not(feature = "spider"))]
+#[path="spider/shim.rs"]
+pub mod spider;
+
 pub mod standalone;
 pub mod status;
 pub mod temp;

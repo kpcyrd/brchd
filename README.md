@@ -27,7 +27,7 @@
 There's basic windows support. You need to force a statically linked libsodium
 with:
 
-    cargo build --release --no-default-features --features=crypto,native-tls
+    cargo build --release --no-default-features --features=crypto,httpd,spider,native-tls
 
 Running the receiver (`-H`) on windows is considered insecure and highly
 discouraged.
