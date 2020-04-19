@@ -5,17 +5,19 @@ use actix_web::{dev::ServiceRequest, dev::ServiceResponse};
 use actix_web::{web, App, Error as ResponseError, HttpResponse, HttpServer};
 use crate::args::Args;
 use crate::config::UploadConfig;
-use crate::destination::{self, save_async};
 use crate::errors::*;
 use crate::pathspec::UploadContext;
 use futures::{Future, StreamExt};
 use futures::future::{ok, Ready};
 use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
+use self::destination::save_async;
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+
+mod destination;
 
 fn filename(field: &Field) -> Option<String> {
     let content_type = field.content_disposition()?;

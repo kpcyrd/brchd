@@ -3,7 +3,7 @@ use brchd::config::ClientConfig;
 use brchd::crypto;
 use brchd::daemon;
 use brchd::errors::*;
-use brchd::http;
+use brchd::httpd;
 use brchd::ipc::IpcClient;
 use brchd::queue;
 use brchd::status::StatusWriter;
@@ -38,7 +38,7 @@ fn run() -> Result<()> {
     if args.daemon {
         daemon::run(&args)?;
     } else if args.http_daemon {
-        http::run(args)?;
+        httpd::run(args)?;
     } else if args.encrypt {
         crypto::run_encrypt(args)?;
     } else if args.decrypt {

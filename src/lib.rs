@@ -14,7 +14,14 @@ pub mod daemon;
 pub mod destination;
 pub mod errors;
 pub mod html;
-pub mod http;
+
+#[cfg(feature = "httpd")]
+#[path="httpd/mod.rs"]
+pub mod httpd;
+#[cfg(not(feature = "httpd"))]
+#[path="httpd/shim.rs"]
+pub mod httpd;
+
 pub mod ipc;
 pub mod pathspec;
 pub mod queue;

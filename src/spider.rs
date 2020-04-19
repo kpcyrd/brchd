@@ -1,11 +1,11 @@
 use crate::errors::*;
 use crate::html;
 use crate::queue:: {Task, QueueClient};
-use reqwest::Client;
+use reqwest::blocking::Client;
 use std::collections::VecDeque;
 use url::Url;
 
-pub async fn queue(client: &mut dyn QueueClient, http: &Client, base: &str) -> Result<()> {
+pub fn queue(client: &mut dyn QueueClient, http: &Client, base: &str) -> Result<()> {
     let mut queue = VecDeque::new();
 
     let target = base.parse::<Url>()
@@ -14,11 +14,10 @@ pub async fn queue(client: &mut dyn QueueClient, http: &Client, base: &str) -> R
 
     while let Some(target) = queue.pop_front() {
         let resp = http.get(target.clone())
-            .send()
-            .await?
+            .send()?
             .error_for_status()?;
 
-        let body = resp.text().await?;
+        let body = resp.text()?;
         let links = html::parse_links(body.as_bytes())?;
 
         for link in &links {
