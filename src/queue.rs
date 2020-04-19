@@ -5,7 +5,7 @@ use crate::ipc::IpcClient;
 use crate::spider;
 use crate::standalone::Standalone;
 use crate::walkdir;
-use reqwest::{Client, Proxy};
+use reqwest::{blocking::Client, Proxy};
 use serde::{Serialize, Deserialize};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -86,13 +86,12 @@ pub fn run_add(args: Args) -> Result<()> {
     exec(args, client, http)
 }
 
-#[actix_rt::main]
-pub async fn exec(args: Args, mut client: Box<dyn QueueClient>, http: Client) -> Result<()> {
+pub fn exec(args: Args, mut client: Box<dyn QueueClient>, http: Client) -> Result<()> {
     for path in &args.paths {
         if path.starts_with("https://") || path.starts_with("https://") {
-            spider::queue(&mut client, &http, path).await?;
+            spider::queue(client.as_mut(), &http, path)?;
         } else {
-            walkdir::queue(&mut client, path)?;
+            walkdir::queue(client.as_mut(), path)?;
         }
     }
     client.finish()

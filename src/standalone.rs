@@ -25,11 +25,8 @@ impl QueueClient for Standalone {
 
         let mut w = StatusWriter::new();
         for msg in &self.status_rx {
-            match msg {
-                IpcMessage::StatusResp(status) => {
-                    w.write(&status)?;
-                },
-                _ => (),
+            if let IpcMessage::StatusResp(status) = msg {
+                w.write(&status)?;
             }
         }
         w.finish()?;
@@ -48,7 +45,7 @@ impl Standalone {
                                          config.destination.clone(),
                                          config.path_format.clone(),
                                          config.proxy.clone(),
-                                         config.pubkey.clone(),
+                                         config.pubkey,
                                          config.seckey.clone())
                 .context("Failed to create worker")?;
             thread::spawn(move || {

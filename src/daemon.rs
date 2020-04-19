@@ -93,7 +93,7 @@ impl Server {
         self.update_stats();
 
         // check if we are supposed to shutdown the server
-        self.shutdown && self.queue.len() == 0 && self.idle_workers.len() == self.total_workers
+        self.shutdown && self.queue.is_empty() && self.idle_workers.len() == self.total_workers
     }
 
     fn push_work(&mut self, task: Task) {
@@ -109,9 +109,7 @@ impl Server {
     }
 
     fn fetch_queue(&mut self, worker: channel::Sender<Vec<Task>>) {
-        let queue = self.queue.iter()
-            .map(|t| t.clone())
-            .collect();
+        let queue = self.queue.iter().cloned().collect();
         worker.send(queue).expect("worker thread died");
     }
 
@@ -231,7 +229,7 @@ pub fn run(args: &Args) -> Result<()> {
                                      config.destination.clone(),
                                      config.path_format.clone(),
                                      config.proxy.clone(),
-                                     config.pubkey.clone(),
+                                     config.pubkey,
                                      config.seckey.clone())
             .context("Failed to create worker")?;
         thread::spawn(move || {

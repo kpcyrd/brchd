@@ -1,5 +1,6 @@
 use crate::args::Args;
-use sodiumoxide::crypto::box_::{self, PublicKey, SecretKey};
+use sodiumoxide::crypto::box_;
+pub use sodiumoxide::crypto::box_::{PublicKey, SecretKey};
 use sodiumoxide::crypto::secretstream;
 use crate::config::{EncryptConfig, DecryptConfig};
 use crate::crypto::stream::{CryptoReader, CryptoWriter};

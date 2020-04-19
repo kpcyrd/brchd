@@ -3,7 +3,7 @@ use crate::queue::{Task, QueueClient};
 use std::fs;
 use walkdir::WalkDir;
 
-pub fn queue(client: &mut Box<dyn QueueClient>, target: &str) -> Result<()> {
+pub fn queue(client: &mut dyn QueueClient, target: &str) -> Result<()> {
     for entry in WalkDir::new(target) {
         let entry = entry?;
         debug!("walkdir: {:?}", entry);

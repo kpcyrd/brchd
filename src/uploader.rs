@@ -1,3 +1,4 @@
+use crate::crypto::{PublicKey, SecretKey};
 use crate::crypto::upload::EncryptedUpload;
 use crate::daemon::Command;
 use crate::destination;
@@ -10,7 +11,6 @@ use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
 use reqwest::Proxy;
 use reqwest::blocking::{Client, multipart};
-use sodiumoxide::crypto::box_::{PublicKey, SecretKey};
 use std::fs::{self, File};
 use std::io;
 use std::io::prelude::*;
