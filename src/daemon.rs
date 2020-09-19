@@ -229,6 +229,7 @@ pub fn run(args: &Args) -> Result<()> {
                                      config.destination.clone(),
                                      config.path_format.clone(),
                                      config.proxy.clone(),
+                                     args.accept_invalid_certs,
                                      config.pubkey,
                                      config.seckey.clone())
             .context("Failed to create worker")?;

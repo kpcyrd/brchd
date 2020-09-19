@@ -37,3 +37,4 @@ pub mod status;
 pub mod temp;
 pub mod uploader;
 pub mod walkdir;
+pub mod web;

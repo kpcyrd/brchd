@@ -1,3 +1,4 @@
+use crate::args::Args;
 use crate::config::DaemonConfig;
 use crate::daemon::{Server, Command};
 use crate::errors::*;
@@ -36,7 +37,7 @@ impl QueueClient for Standalone {
 }
 
 impl Standalone {
-    pub fn new(config: DaemonConfig) -> Result<Standalone> {
+    pub fn new(args: &Args, config: DaemonConfig) -> Result<Standalone> {
         let total_workers = config.concurrency;
         let (tx, rx) = channel::unbounded();
         for _ in 0..total_workers {
@@ -45,6 +46,7 @@ impl Standalone {
                                          config.destination.clone(),
                                          config.path_format.clone(),
                                          config.proxy.clone(),
+                                         args.accept_invalid_certs,
                                          config.pubkey,
                                          config.seckey.clone())
                 .context("Failed to create worker")?;

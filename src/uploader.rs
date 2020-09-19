@@ -6,10 +6,10 @@ use crate::errors::*;
 use crate::queue::{Task, Target, PathTarget};
 use crate::pathspec::UploadContext;
 use crate::status::{ProgressUpdate, UploadStart, UploadProgress, UploadEnd};
+use crate::web;
 use crossbeam_channel::{self as channel};
 use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
-use reqwest::Proxy;
 use reqwest::blocking::{Client, multipart};
 use std::fs::{self, File};
 use std::io;
@@ -39,20 +39,16 @@ pub enum Destination {
 }
 
 impl Worker {
-    pub fn new(tx: channel::Sender<Command>, destination: String, path_format: String, proxy: Option<String>, pubkey: Option<PublicKey>, seckey: Option<SecretKey>) -> Result<Worker> {
+    pub fn new(tx: channel::Sender<Command>, destination: String, path_format: String, proxy: Option<String>, accept_invalid_certs: bool, pubkey: Option<PublicKey>, seckey: Option<SecretKey>) -> Result<Worker> {
         let destination = if let Ok(url) = destination.parse::<Url>() {
             Destination::Url(url)
         } else {
             Destination::Path(destination)
         };
 
-        let mut builder = Client::builder()
-            .connect_timeout(Duration::from_secs(5))
-            .timeout(None);
-        if let Some(proxy) = &proxy {
-            builder = builder.proxy(Proxy::all(proxy)?);
-        }
-        let client = builder.build()?;
+        // TODO: accept_invalid_certs should be per upload/download
+        // TODO: accept_invalid_certs needs to be per-item
+        let client = web::client(None, proxy.as_ref(), accept_invalid_certs)?;
 
         let crypto = pubkey.map(|pubkey| {
             CryptoConfig {
@@ -85,9 +81,11 @@ impl Worker {
                     path,
                     resolved,
                 }) => {
-                    (format!("{:?}", path), self.start_upload(path, resolved))
+                    (format!("{:?}", path), self.start_upload_file(path, resolved))
                 },
-                Target::Url(_url) => todo!("url task"),
+                Target::Url(url) => {
+                    (format!("{:?}", url.path), self.start_upload_download(&url.path, url.url))
+                },
             };
 
             if let Err(err) = result {
@@ -98,7 +96,27 @@ impl Worker {
         }
     }
 
-    pub fn start_upload(&self, path: PathBuf, resolved: PathBuf) -> Result<()> {
+    pub fn start_upload_file(&self, path: PathBuf, resolved: PathBuf) -> Result<()> {
+        let file = File::open(&resolved)?;
+        let metadata = fs::metadata(&resolved)?;
+        let total = metadata.len();
+
+        self.start_upload(path, file, total, resolved)
+    }
+
+    pub fn start_upload_download(&self, path: &str, url: Url) -> Result<()> {
+        let resp = self.client
+            .get(url)
+            .send()?;
+        resp.error_for_status_ref()?;
+
+        let total = resp.content_length().unwrap_or(0);
+
+        let path = PathBuf::from(path);
+        self.start_upload(path.clone(), resp, total, path)
+    }
+
+    pub fn start_upload<R: 'static + Read + Send>(&self, path: PathBuf, r: R, total: u64, resolved: PathBuf) -> Result<()> {
         // TODO: this works for now, but we need to revisit this
         // TODO: this doesn't remove /../ inside the path
         let mut path = path.to_string_lossy().into_owned();
@@ -107,17 +125,13 @@ impl Worker {
             path = path[3..].to_string();
         }
 
-        let file = File::open(&resolved)?;
-        let metadata = fs::metadata(&resolved)?;
-        let total = metadata.len();
-
         // TODO: instead of boxing, we could refactor this into generics (benchmark this)
         let (file, total) = if let Some(crypto) = &self.crypto {
-            let file = EncryptedUpload::new(file, &crypto.pubkey, crypto.seckey.as_ref())?;
+            let file = EncryptedUpload::new(r, &crypto.pubkey, crypto.seckey.as_ref())?;
             let total = file.total_with_overhead(total);
             (Box::new(file) as Box<dyn Read + Send>, total)
         } else {
-            (Box::new(file) as Box<dyn Read + Send>, total)
+            (Box::new(r) as Box<dyn Read + Send>, total)
         };
 
         let (upload, id) = Upload::new(self.tx.clone(), file);
@@ -138,7 +152,9 @@ impl Worker {
         result
     }
 
+    // TODO: full_path is not the right name, it's what's being sent to the server for structure
     fn copy_file(&self, mut upload: Upload, destination: String, path: &str, full_path: PathBuf) -> Result<()> {
+        // TODO: should this be done by the function calling us?
         let full_path = full_path.to_string_lossy(); // TODO: is to_string_lossy the right approach here?
         let full_path = full_path.trim_start_matches('/').to_string();
 
@@ -164,6 +180,8 @@ impl Worker {
             .post(url)
             .multipart(form)
             .send()?;
+
+        // TODO: check status code
 
         info!("uploaded: {:?}", resp);
         let body = resp.text()?;
