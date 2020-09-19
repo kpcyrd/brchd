@@ -76,6 +76,7 @@ pub fn run_add(args: Args) -> Result<()> {
     };
 
     let mut builder = Client::builder()
+        .danger_accept_invalid_certs(args.accept_invalid_certs)
         .connect_timeout(Duration::from_secs(5))
         .timeout(Duration::from_secs(60));
     if let Some(proxy) = &config.proxy {
