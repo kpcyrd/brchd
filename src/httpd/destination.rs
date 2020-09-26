@@ -37,14 +37,13 @@ where
     let size = recv_all(stream, upload.f).await?;
 
     let size = size.file_size(file_size_opts::CONVENTIONAL)
-        .map_err(|e| format_err!("{}", e))?;
+        .map_err(|e| WebError::from(anyhow!("{}", e)))?;
 
     let temp_path = upload.temp_path;
     let dest_path = upload.dest_path;
     info!("{} moving upload {:?} -> {:?} ({})", remote_sock, temp_path, dest_path, size);
     web::block(|| fs::rename(temp_path, dest_path)
         .context("Failed to move temp file to final destination")
-        .map_err(Error::from)
     ).await?;
 
     Ok(())

@@ -40,7 +40,7 @@ async fn post_file(req: web::HttpRequest, config: web::Data<Arc<UploadConfig>>, 
                 Some(remote_addr.clone()),
                 &path,
                 None,
-            )?, remote_sock.clone()).await?;
+            ).map_err(WebError::from)?, remote_sock.clone()).await?;
         }
     }
 
@@ -63,7 +63,7 @@ async fn put_file(req: web::HttpRequest, config: web::Data<Arc<UploadConfig>>, p
         Some(remote_addr),
         &filename,
         None,
-    )?, remote_sock).await?;
+    ).map_err(WebError::from)?, remote_sock).await?;
 
     Ok(HttpResponse::Ok().body("done.\n"))
 }

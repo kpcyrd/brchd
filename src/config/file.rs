@@ -47,7 +47,6 @@ impl ConfigFile {
     pub fn load_slice(buf: &[u8]) -> Result<ConfigFile> {
         toml::from_slice(&buf)
             .context("Failed to parse config file")
-            .map_err(Error::from)
     }
 
     pub fn update(&mut self, args: &Args) {
