@@ -29,7 +29,7 @@ fn log_filter(args: &Args) -> &'static str {
     }
 }
 
-fn run() -> Result<()> {
+fn main() -> Result<()> {
     let args = Args::from_args();
 
     env_logger::init_from_env(Env::default()
@@ -76,14 +76,4 @@ fn run() -> Result<()> {
     }
 
     Ok(())
-}
-
-fn main() {
-    if let Err(err) = run() {
-        eprintln!("Error: {}", err);
-        for cause in err.iter_chain().skip(1) {
-            eprintln!("Because: {}", cause);
-        }
-        std::process::exit(1);
-    }
 }

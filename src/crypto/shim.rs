@@ -1,19 +1,21 @@
 use crate::args::Args;
 use crate::errors::*;
+use std::io::Read;
+use std::marker::PhantomData;
 
 pub type PublicKey = ();
 pub type SecretKey = ();
 
 pub mod upload {
-    use std::fs::File;
     use std::io;
     use super::*;
 
-    pub struct EncryptedUpload {
+    pub struct EncryptedUpload<R> {
+        phantom: PhantomData<R>,
     }
 
-    impl EncryptedUpload {
-        pub fn new(_: File, _: &PublicKey, _: Option<&SecretKey>) -> Result<EncryptedUpload> {
+    impl<R: Read> EncryptedUpload<R> {
+        pub fn new(_: R, _: &PublicKey, _: Option<&SecretKey>) -> Result<EncryptedUpload<R>> {
             unimplemented!()
         }
 
@@ -22,7 +24,7 @@ pub mod upload {
         }
     }
 
-    impl io::Read for EncryptedUpload {
+    impl<R> io::Read for EncryptedUpload<R> {
         fn read(&mut self, _buf: &mut [u8]) -> io::Result<usize> {
             unimplemented!()
         }

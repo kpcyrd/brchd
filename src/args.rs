@@ -65,6 +65,11 @@ pub struct Args {
     /// Use a proxy for all requests (e.g. socks5://127.0.0.1:9050)
     #[structopt(short="x", long)]
     pub proxy: Option<String>,
+    /// Accept invalid certificates. The certificate may be expired, not valid for this hostname or lack signatures from a trusted CA. This makes the connection vulnerable to mitm attacks.
+    #[structopt(long)]
+    pub accept_invalid_certs: bool,
+    #[structopt(long, env="BRCHD_USER_AGENT")]
+    pub user_agent: Option<String>,
 }
 
 fn parse_addr(s: &str) -> Result<SocketAddr> {

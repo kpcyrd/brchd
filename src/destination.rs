@@ -86,8 +86,7 @@ pub fn save_sync<R: Read>(stream: &mut R, ctx: UploadContext) -> Result<()> {
 
     info!("moving file {:?} -> {:?} ({})", upload.temp_path, upload.dest_path, size);
     fs::rename(upload.temp_path, upload.dest_path)
-        .context("Failed to move temp file to final destination")
-        .map_err(Error::from)?;
+        .context("Failed to move temp file to final destination")?;
 
     Ok(())
 }

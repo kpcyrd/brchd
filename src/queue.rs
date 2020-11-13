@@ -5,7 +5,8 @@ use crate::ipc::IpcClient;
 use crate::spider;
 use crate::standalone::Standalone;
 use crate::walkdir;
-use reqwest::{blocking::Client, Proxy};
+use crate::web;
+use reqwest::blocking::Client;
 use serde::{Serialize, Deserialize};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -70,19 +71,12 @@ pub fn run_add(args: Args) -> Result<()> {
 
     let client: Box<dyn QueueClient> = if args.destination.is_some() {
         let config = DaemonConfig::load(&args)?;
-        Box::new(Standalone::new(config)?)
+        Box::new(Standalone::new(&args, config)?)
     } else {
         Box::new(IpcClient::connect(config.socket)?)
     };
 
-    let mut builder = Client::builder()
-        .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(60));
-    if let Some(proxy) = &config.proxy {
-        builder = builder.proxy(Proxy::all(proxy)?);
-    }
-    let http = builder.build()?;
-
+    let http = web::client(Some(Duration::from_secs(60)), config.proxy.as_ref(), args.accept_invalid_certs, args.user_agent.as_ref())?;
     exec(args, client, http)
 }
 
