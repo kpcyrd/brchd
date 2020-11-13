@@ -16,6 +16,10 @@
     brchd # attaches status monitor
     brchd --wait # blocks until all pending uploads are done
 
+## Run as standalone spider
+
+    brchd -d ./download/ https://ftp.example.com/some/folder/
+
 ## Install dependencies
 
     apt install pkg-config libsodium-dev
