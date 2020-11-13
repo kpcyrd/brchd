@@ -9,24 +9,37 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.build.os }}
     strategy:
+      fail-fast: false
       matrix:
         build:
-        - name: brchd-x86_64-static
+        - name: brchd-x86_64-static-linux
+          os: ubuntu-latest
           path: target/x86_64-unknown-linux-musl/release/brchd
           run: cargo build --verbose --release --no-default-features --features=crypto,httpd,spider,rustls --target x86_64-unknown-linux-musl
-        - name: brchd-x86_64-minimal
+        - name: brchd-x86_64-minimal-linux
+          os: ubuntu-latest
           path: target/release/brchd
           run: cargo build --verbose --release --no-default-features --features=native-tls
+        - name: brchd-x86_64-static-macos
+          os: macos-latest
+          path: target/release/brchd
+          run: cargo build --verbose --release --no-default-features --features=crypto,httpd,spider,rustls
+        - name: brchd-x86_64-static-windows.exe
+          os: windows-latest
+          path: target/release/brchd.exe
+          run: cargo build --verbose --release --no-default-features --features=crypto,httpd,spider,rustls
 
     steps:
     - uses: actions/checkout@v2
 
     - name: Install dependencies
+      if: matrix.build.os == 'ubuntu-latest'
       run: sudo apt-get install musl-tools
 
     - name: Install musl rustup target
+      if: matrix.build.os == 'ubuntu-latest'
       run: rustup target add x86_64-unknown-linux-musl
 
     - name: Build
