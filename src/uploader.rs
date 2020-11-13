@@ -48,7 +48,7 @@ impl Worker {
 
         // TODO: accept_invalid_certs should be per upload/download
         // TODO: accept_invalid_certs needs to be per-item
-        let client = web::client(None, proxy.as_ref(), accept_invalid_certs)?;
+        let client = web::client(None, proxy.as_ref(), accept_invalid_certs, None)?;
 
         let crypto = pubkey.map(|pubkey| {
             CryptoConfig {

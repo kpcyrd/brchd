@@ -76,7 +76,7 @@ pub fn run_add(args: Args) -> Result<()> {
         Box::new(IpcClient::connect(config.socket)?)
     };
 
-    let http = web::client(Some(Duration::from_secs(60)), config.proxy.as_ref(), args.accept_invalid_certs)?;
+    let http = web::client(Some(Duration::from_secs(60)), config.proxy.as_ref(), args.accept_invalid_certs, args.user_agent.as_ref())?;
     exec(args, client, http)
 }
 

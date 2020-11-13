@@ -13,16 +13,23 @@ pub fn queue(client: &mut dyn QueueClient, http: &Client, base: &str) -> Result<
     queue.push_back(target);
 
     while let Some(target) = queue.pop_front() {
+        debug!("Fetching directory listing from url {:?}", target);
         let resp = http.get(target.clone())
-            .send()?
-            .error_for_status()?;
+            .send()
+            .context("Failed to send request")?
+            .error_for_status()
+            .context("Got http error")?;
 
         let body = resp.text()?;
+        debug!("Downloaded {} bytes", body.as_bytes().len());
         let links = html::parse_links(body.as_bytes())?;
+        debug!("Discovered {} <a> tags", links.len());
 
-        for link in &links {
-            let link = target.join(link)?;
+        for href in &links {
+            debug!("Discovered href: {:?}", href);
+            let link = target.join(href)?;
             let link_str = link.as_str();
+            debug!("Discovered link: {:?}", link_str);
             let target = target.as_str();
 
             if !link_str.starts_with(target) || link_str == target {
