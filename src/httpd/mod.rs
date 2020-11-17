@@ -75,10 +75,13 @@ fn index() -> HttpResponse {
     <title>Upload File</title>
     <meta name="viewport" content="width=device-width">
     <style>
-    body { background-color: #231123; }
-    form { background-color: #372554; border-radius: 10px; padding: 10px; }
+    body { background-color: #231123; margin: 10px; }
+    form { background-color: #372554; border-radius: 10px; padding: 10px 20px 10px 10px; }
     input[type=file] { margin: 0 0 20px; }
-    input { -webkit-appearance: none; width: 100%; padding: 50px 10px; border-radius: 10px; box-sizing: border-box; border: 0; background-color: #52528C; color: #eee; }
+    input { -webkit-appearance: none; width: 100%; padding: 50px 10px; margin: 0 0 10px; border-radius: 10px;
+    box-sizing: border-box; border: 0; background-color: #52528C; color: #eee; box-shadow: 10px 10px #000; }
+    input:active { box-shadow: 0 0; margin: 10px 0 0 10px; }
+    input[type=file]:active { margin: 10px 0 10px 10px; }
     </style>
     </head>
     <body>
