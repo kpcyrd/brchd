@@ -71,17 +71,28 @@ async fn put_file(req: web::HttpRequest, config: web::Data<Arc<UploadConfig>>, p
 fn index() -> HttpResponse {
     let html = r#"<!DOCTYPE html>
 <html>
-    <head><title>Upload File</title></head>
+    <head>
+    <title>Upload File</title>
+    <meta name="viewport" content="width=device-width">
+    <style>
+    body { background-color: #231123; }
+    form { background-color: #372554; border-radius: 10px; padding: 10px; }
+    input[type=file] { margin: 0 0 20px; }
+    input { -webkit-appearance: none; width: 100%; padding: 50px 10px; border-radius: 10px; box-sizing: border-box; border: 0; background-color: #52528C; color: #eee; }
+    </style>
+    </head>
     <body>
         <form action="/" method="post" enctype="multipart/form-data">
-            <input type="file" multiple name="file">
+            <input type="file" multiple name="file" required>
             <input type="submit" value="Submit">
         </form>
     </body>
 </html>
 "#;
 
-    HttpResponse::Ok().body(html)
+    HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(html)
 }
 
 pub struct Logger;
