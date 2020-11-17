@@ -2,7 +2,7 @@ use actix_multipart::Multipart;
 use actix_multipart::Field;
 use actix_service::{Service, Transform};
 use actix_web::{dev::ServiceRequest, dev::ServiceResponse};
-use actix_web::{web, App, Error as ResponseError, HttpResponse, HttpServer};
+use actix_web::{web, App, middleware, Error as ResponseError, HttpResponse, HttpServer};
 use crate::args::Args;
 use crate::config::UploadConfig;
 use crate::errors::*;
@@ -212,6 +212,7 @@ pub async fn run(args: Args) -> Result<()> {
     let app_data = config.clone();
     HttpServer::new(move || {
             App::new()
+                .wrap(middleware::Compress::default())
                 .data(app_data.clone())
                 .wrap(Logger)
                 .service(web::resource("/*")
