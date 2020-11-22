@@ -2,7 +2,7 @@ use actix_multipart::Multipart;
 use actix_multipart::Field;
 use actix_service::{Service, Transform};
 use actix_web::{dev::ServiceRequest, dev::ServiceResponse};
-use actix_web::{web, App, Error as ResponseError, HttpResponse, HttpServer};
+use actix_web::{web, App, middleware, Error as ResponseError, HttpResponse, HttpServer};
 use crate::args::Args;
 use crate::config::UploadConfig;
 use crate::errors::*;
@@ -71,17 +71,31 @@ async fn put_file(req: web::HttpRequest, config: web::Data<Arc<UploadConfig>>, p
 fn index() -> HttpResponse {
     let html = r#"<!DOCTYPE html>
 <html>
-    <head><title>Upload File</title></head>
+    <head>
+    <title>Upload File</title>
+    <meta name="viewport" content="width=device-width">
+    <style>
+    body { background-color: #231123; margin: 10px; }
+    form { background-color: #372554; border-radius: 10px; padding: 10px 20px 10px 10px; }
+    input[type=file] { margin: 0 0 20px; }
+    input { -webkit-appearance: none; width: 100%; padding: 50px 10px; margin: 0 0 10px; border-radius: 10px;
+    box-sizing: border-box; border: 0; background-color: #52528C; color: #eee; box-shadow: 10px 10px #000; }
+    input:active { box-shadow: 0 0; margin: 10px 0 0 10px; }
+    input[type=file]:active { margin: 10px 0 10px 10px; }
+    </style>
+    </head>
     <body>
         <form action="/" method="post" enctype="multipart/form-data">
-            <input type="file" multiple name="file">
+            <input type="file" multiple name="file" required>
             <input type="submit" value="Submit">
         </form>
     </body>
 </html>
 "#;
 
-    HttpResponse::Ok().body(html)
+    HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(html)
 }
 
 pub struct Logger;
@@ -212,6 +226,7 @@ pub async fn run(args: Args) -> Result<()> {
     let app_data = config.clone();
     HttpServer::new(move || {
             App::new()
+                .wrap(middleware::Compress::default())
                 .data(app_data.clone())
                 .wrap(Logger)
                 .service(web::resource("/*")
